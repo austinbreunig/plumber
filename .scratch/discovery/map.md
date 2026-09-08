@@ -1,6 +1,9 @@
 <!-- wayfinder:map -->
 # plumber — Discovery map
 
+> **Migrated to GitHub Issues** (`austinbreunig/plumber`, label `wayfinder:map`).
+> This file is the charting-session record; the GitHub issue is now the live map.
+
 ## Destination
 
 A signed-off `plan.md` for **plumber**: a pip/pipx-installable geospatial

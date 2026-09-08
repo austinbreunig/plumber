@@ -10,8 +10,11 @@ seeded this project is captured on the wayfinder map's Notes.
 
 ### Issue tracker
 
-Local markdown under `.scratch/` — no remote connected yet. See
-`docs/agents/issue-tracker.md`. Migrate to the GitHub flow once a remote exists.
+GitHub Issues in `austinbreunig/plumber`, via the `gh` CLI. See
+`docs/agents/issue-tracker.md`. The Discovery wayfinder map and its tickets live
+as GitHub issues (label `wayfinder:map` for the map). The original
+`.scratch/discovery/` markdown is kept as the charting-session record only —
+GitHub is now the source of truth.
 
 ### Domain docs
 

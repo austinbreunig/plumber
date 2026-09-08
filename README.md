@@ -23,5 +23,5 @@ See `../../playbook/phases.md`.
 
 ## Issue tracker
 
-Local markdown under `.scratch/` until a remote is connected. See
-`docs/agents/issue-tracker.md`.
+GitHub Issues in [`austinbreunig/plumber`](https://github.com/austinbreunig/plumber/issues),
+via the `gh` CLI. See `docs/agents/issue-tracker.md`.
