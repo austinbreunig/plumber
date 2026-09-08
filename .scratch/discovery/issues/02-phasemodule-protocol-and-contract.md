@@ -22,3 +22,11 @@ Pin the phase interface and its written contract.
 
 Output: the `PhaseModule` Protocol definition and a contract statement suitable
 to drop into `CONTEXT.md` / an ADR.
+
+## Input from research
+
+Ticket 08 (`research/beam-spark-partition-contract.md`): the contract must state a
+phase is a **partition-local map** — module-level (not a closure), pure,
+idempotent, order-independent, no shared mutable state, captures no unpicklable
+resources. Include a "non-partitionable phase runs on the driver / single
+partition" escape hatch.

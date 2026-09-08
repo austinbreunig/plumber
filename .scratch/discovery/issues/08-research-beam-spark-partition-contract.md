@@ -1,7 +1,7 @@
 # Research: Beam & Spark partition/step contract for geospatial data
 
 Type: research
-Status: open
+Status: resolved
 Blocked by: —
 
 ## Question
@@ -24,3 +24,27 @@ implemented now.
 
 Capture findings as `.scratch/discovery/research/beam-spark-partition-contract.md`
 and link it here. Primary sources: Beam and Spark official docs, Sedona docs.
+
+## Answer
+
+Findings: [`.scratch/discovery/research/beam-spark-partition-contract.md`](../research/beam-spark-partition-contract.md)
+
+Nothing forces an arity change to `execute(phases, data, params)` or to
+`run(gdf, **params) -> gdf`. Beam's unit of user code is the element (`beam.Map` /
+`ParDo`; no first-class per-partition transform — you carry a partition as one
+pickled element or rebuild it after `GroupByKey`/`GroupIntoBatches`); bundles are
+opaque, unordered, and retried. Spark's per-partition contract is
+`applyInPandas` (partition-by-field) or `mapInPandas` (by size), each needing a
+declared output schema, with geometry kept typed via Sedona (+ native GeoParquet);
+`repartition`/`repartitionByRange` cover column vs range, target-size is manual
+arithmetic. The portable callable is a module-level (not closure) pure function
+`(partition_gdf, params) -> partition_gdf` that is order-independent, idempotent,
+holds no shared mutable state, and captures no unpicklable resources — the exact
+intersection of `Pool` + Beam `ParDo` + Spark `applyInPandas`. Two decisions to
+make now so Beam/Spark stay open, both costless on the current signature: type
+`data` as a dataset reference (not a materialized GeoDataFrame — distributed
+executors do their own IO) and type `execute`'s return as a result/handle (not
+necessarily a collected GeoDataFrame). Also name in ticket 02 that a phase must be
+a partition-local map, with a "non-partitionable phase runs on the driver" escape
+hatch. Beam core has no GeoParquet/vector IO (plain Parquet only; `geobeam` is the
+third-party option); a Spark executor effectively requires Sedona.

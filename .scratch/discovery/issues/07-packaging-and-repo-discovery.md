@@ -21,3 +21,11 @@ config when invoked from that repo's working directory.
 
 Output: the install story, the discovery rules, and the plumber repo's own dev
 setup.
+
+## Input from research
+
+Ticket 09 (`research/pipeline-framework-prior-art.md`): Kedro/Dagster/Prefect all
+require their own project skeleton (`pipeline_registry.py`, `Definitions` code
+location, deployments) — that fails "run from any repo". Ploomber's approach fits:
+resolve a dotted path / file directly, no package layout imposed on the target
+repo. Lean that way for discovery.

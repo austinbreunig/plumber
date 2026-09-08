@@ -55,6 +55,34 @@ genuine persistent state (the builder may qualify, the protocols do not).
 
 <!-- one line per resolved ticket: gist + link -->
 
+- [Research: Beam/Spark partition contract](issues/08-research-beam-spark-partition-contract.md)
+  — nothing forces an arity change to `execute(...)` or `run(gdf, **params) -> gdf`.
+  The portable per-partition callable is a module-level pure fn
+  `(partition_gdf, params) -> partition_gdf` (idempotent, order-independent, no
+  shared state, picklable) — plumber's phase contract already meets this if
+  phases stay pure. Lock two costless decisions so Beam/Spark aren't foreclosed:
+  (1) type `execute`'s `data` as a **dataset reference** (path + format + opts),
+  not a materialized GeoDataFrame — distributed executors do their own IO;
+  (2) type `execute`'s **return as a result/handle**, not necessarily a
+  driver-collected GeoDataFrame. Beam core has no vector/GeoParquet IO
+  (`geobeam` is 3rd-party); a Spark executor effectively requires Sedona.
+  Full findings: `research/beam-spark-partition-contract.md`.
+- [Research: pipeline-framework prior art](issues/09-research-pipeline-framework-prior-art.md)
+  — Kedro/Dagster/Snakemake/Luigi all *derive* order from a DAG and need their
+  own project skeleton (fails "run from any repo"). **Ploomber** is the model:
+  explicit ordered step list in YAML, each entry a dotted path resolved directly
+  to `<module>.run`, no package layout. Config: Kedro's two layers with CLI-wins
+  precedence (`parameters.yml` + `--params`) merged and passed as `**params`;
+  optional typed validation via a phase-exported Pydantic model checked by
+  `plumber check` — entry point stays `run(gdf, **params)`, never a class.
+  Executor swap: one flag/key picks an `ExecutionStrategy`, phase code never
+  references it; parallel contract = Kedro ParallelRunner rules (picklable, no
+  shared state, no cross-phase side effects). Partitioning: Dagster's
+  runtime-key-injection model, but explicit in config — phases stay
+  partition-agnostic, one gdf in / one gdf out. Reject: DAG inference, mandatory
+  skeletons, class-per-phase, target-file-existence ordering.
+  Full findings: `research/pipeline-framework-prior-art.md`.
+
 ## Not yet specified
 
 <!-- in-scope fog; graduates to tickets as the frontier advances -->

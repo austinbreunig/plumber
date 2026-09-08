@@ -20,3 +20,12 @@ author.
   plain dataclass + manual checks)?
 
 Output: an annotated example config plus the field list and override rules.
+
+## Input from research
+
+Ticket 09 (`research/pipeline-framework-prior-art.md`): adopt Kedro's two-layer
+config with **CLI-wins precedence** (`parameters.yml` + `--params`), merge to one
+dict, pass to the phase as `**params` (Ploomber `PythonCallable(**params)`
+style). Optional typed validation via a **phase-exported Pydantic model** that
+`plumber check` verifies (Dagster `Config` idea) — the entry point stays
+`run(gdf, **params)`, never a class. Explicit ordered `phases:` list, no DAG.
