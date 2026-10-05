@@ -33,7 +33,7 @@ The `ab_spatial/.claude/` AI skill consumes plumber's public API; its boundary i
 
 - `PhaseModule` protocol, generic over `Payload` (v1: `GeoDataFrame`) (#3, #12).
 - `ExecutionStrategy` protocol; `LocalSequential` and `LocalMultiprocess` implementations (#5).
-- Config schema (YAML): phase list, `input`/`output` (both user-written, dotted-path resolved, symmetric — #4, #14), partitioning, CLI-override precedence.
+- Config schema (YAML): phase list (each entry a `module:attr` path — `:attr` always required, no default to `run` — #2, #16), `input`/`output` (both user-written, dotted-path resolved, symmetric — #4, #14), partitioning, CLI-override precedence.
 - `plumber check` — structural → static → runtime-probe validation (#6).
 - Packaging: `ab-plumber` on PyPI, `pipx`/`pip` install, `plumber run`/`plumber check` subcommands, fixed `./plumber.yaml` discovery (#8).
 - Checkpoints + partial runs: opt-in `checkpoint: true` per phase, written by plumber as GeoParquet to `checkpoints.dir`; `plumber run --from/--to <name>` runs a contiguous slice, starting from the previous phase's checkpoint (#15).
