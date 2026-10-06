@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plumber Ticket Readiness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column; component grid of equal cards; gaps as side-by-side option panels */
+:root {
+  --bg: #f6f8f9;
+  --surface: #ffffff;
+  --fg: #17232b;
+  --muted: #5a6b75;
+  --line: #d6dfe4;
+  --accent: #0e6e86;
+  --ready: #1f7a4d;
+  --ready-bg: #e3f3ea;
+  --gap: #9a5a00;
+  --gap-bg: #fbefd9;
+  --code-bg: #eef3f5;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11181d; --surface: #182229; --fg: #e3eaee; --muted: #9aabb5; --line: #2a3943;
+    --accent: #5cc3dc; --ready: #6fd3a0; --ready-bg: #173528; --gap: #f0b55a; --gap-bg: #3a2a12;
+    --code-bg: #1d2a32; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11181d; --surface: #182229; --fg: #e3eaee; --muted: #9aabb5; --line: #2a3943;
+  --accent: #5cc3dc; --ready: #6fd3a0; --ready-bg: #173528; --gap: #f0b55a; --gap-bg: #3a2a12;
+  --code-bg: #1d2a32; color-scheme: dark;
+}
+body { margin: 0;  background: var(--bg); color: var(--fg); font: 15px/1.6 var(--font-body); }
+.wrap { max-width: 960px; margin: 0 auto; padding-inline: 16px; padding-block: 40px 64px; display: grid; gap: 40px; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.25; margin: 0; }
+h1 { font-size: 2rem; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.02rem; }
+p { margin: 0; max-width: 68ch; }
+section { display: grid; gap: 16px; min-width: 0; }
+code, pre { font-family: var(--font-mono); font-size: 0.85em; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+pre.block { background: var(--code-bg); padding: 12px 14px; border-radius: 6px; overflow-x: auto; margin: 0; line-height: 1.5; }
+a { color: var(--accent); }
+.eyebrow { font: 600 0.75rem/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+header { display: grid; gap: 12px; }
+.lede { font-size: 1.08rem; }
+.tally { display: flex; flex-wrap: wrap; gap: 10px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 0.8rem/1 var(--font-mono); padding: 6px 10px; border-radius: 999px; }
+.pill.ready { background: var(--ready-bg); color: var(--ready); }
+.pill.gap { background: var(--gap-bg); color: var(--gap); }
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; overflow-x: auto; }
+.diagram pre.mermaid { margin: 0; display: flex; justify-content: center; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 6px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.card.ready { border-left-color: var(--ready); }
+.card.gap { border-left-color: var(--gap); }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.card-head h3 { font-size: 1rem; }
+.num { font-family: var(--font-mono); color: var(--muted); margin-right: 6px; }
+.card ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.card li { font-size: 0.92rem; }
+.refs { font: 0.78rem var(--font-mono); color: var(--muted); }
+.note { font-size: 0.88rem; color: var(--gap); }
+.options { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.option { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.gapbox { display: grid; gap: 12px; padding: 18px; border-radius: 8px; background: var(--gap-bg); }
+.gapbox h3 { color: var(--gap); }
+.gapbox .option { background: var(--surface); }
+.verdict { display: grid; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+.legend { font-size: 0.85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">plumber · Discovery → Tracer handoff</div>
+  <h1>Which components are ready to become tickets?</h1>
+  <p class="lede">The plan breaks into 10 components. Six can go to tickets now. Four are blocked by two gaps in the decisions, and each gap needs one short grilling session.</p>
+  <div class="tally">
+    <span class="pill ready">✓ 6 ready</span>
+    <span class="pill gap">! 4 blocked by 2 gaps</span>
+  </div>
+  <p class="legend">Numbers like #5 point to tickets on the <a href="https://github.com/austinbreunig/plumber/issues/1">Discovery map</a>.</p>
+</header>
+
+<section>
+  <h2>How they depend on each other</h2>
+  <p>An arrow means "the next one is built on this one." Dotted lines are support work.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+    P[1 · protocols] --> R[3 · resolver]
+    P --> C[2 · config]
+    R --> B[4 · builder / run]
+    C --> B
+    B --> LS[5a · LocalSequential]
+    B --> MP[5b · LocalMultiprocess]
+    MP --> CK[6 · checkpoints]
+    LS --> CK
+    R --> CH[7 · check]
+    CK --> CLI[8 · CLI]
+    CH --> CLI
+    PK[0 · packaging + CI] -.-> P
+    SH[9 · shim example + docs] -.-> R
+</pre>
+  </div>
+</section>
+
+<section>
+  <h2>Component by component</h2>
+  <div class="grid">
+
+    <article class="card ready">
+      <div class="card-head"><h3><span class="num">0</span>Packaging + CI</h3><span class="pill ready">Ready</span></div>
+      <ul>
+        <li><code>src/plumber/</code>, hatchling, published as <code>ab-plumber</code></li>
+        <li>Nix + uv + direnv</li>
+        <li>ruff + pytest on Python 3.9 and 3.12</li>
+      </ul>
+      <p>Copy maply's setup. Nothing to decide.</p>
+      <div class="refs">#8</div>
+    </article>
+
+    <article class="card gap">
+      <div class="card-head"><h3><span class="num">1</span>Protocols</h3><span class="pill gap">Gap A</span></div>
+      <ul>
+        <li><code>PhaseModule[Payload]</code></li>
+        <li><code>DatasetRef[Payload]</code></li>
+        <li><code>Result[Payload]</code></li>
+      </ul>
+      <p>The shapes are locked. But what <code>DatasetRef</code> is used for is unclear. See Gap A.</p>
+      <div class="refs">#3 #5 #12</div>
+    </article>
+
+    <article class="card gap">
+      <div class="card-head"><h3><span class="num">2</span>Config loader</h3><span class="pill gap">Gap A (small)</span></div>
+      <ul>
+        <li>Load <code>./plumber.yaml</code>, or <code>--config PATH</code></li>
+        <li>Shallow-merge <code>--params key=value</code> over the file</li>
+        <li>Keys: pipeline, input, phases, output, execution, checkpoints</li>
+      </ul>
+      <p class="note">#4's YAML example has no <code>output:</code> block, because #14 added output later. Fix: give it the same shape as <code>input</code> (path + params).</p>
+      <div class="refs">#4 #14 #15</div>
+    </article>
+
+    <article class="card ready">
+      <div class="card-head"><h3><span class="num">3</span>Resolver</h3><span class="pill ready">Ready</span></div>
+      <ul>
+        <li><code>"pkg.mod:attr"</code> → callable (<code>:attr</code> is required)</li>
+        <li>Adds the current folder to <code>sys.path</code></li>
+        <li><code>name</code> defaults to the path; duplicate names stop with an error</li>
+      </ul>
+      <div class="refs">#2 #16</div>
+    </article>
+
+    <article class="card gap">
+      <div class="card-head"><h3><span class="num">4</span>Builder / run()</h3><span class="pill gap">Gap A</span></div>
+      <ul>
+        <li>Resolve paths</li>
+        <li>Pair each phase with its params</li>
+        <li>Call <code>strategy.execute()</code></li>
+      </ul>
+      <p>Depends on who reads the input. See Gap A.</p>
+      <div class="refs">#5</div>
+    </article>
+
+    <article class="card gap">
+      <div class="card-head"><h3><span class="num">5a</span>LocalSequential</h3><span class="pill gap">Gap A</span></div>
+      <ul>
+        <li>Runs the whole GeoDataFrame through every phase</li>
+        <li>No partitioning</li>
+      </ul>
+      <div class="refs">#5</div>
+    </article>
+
+    <article class="card ready">
+      <div class="card-head"><h3><span class="num">5b</span>LocalMultiprocess</h3><span class="pill ready">Ready after 5a</span></div>
+      <ul>
+        <li>Splits rows by fields, by chunk size, or by worker count</li>
+        <li>Runs the pieces with <code>ProcessPoolExecutor</code></li>
+        <li><code>partitionable: false</code> → join the pieces, run once, split again</li>
+        <li>At the end: join and restore the original row order</li>
+      </ul>
+      <div class="refs">#5 #13</div>
+    </article>
+
+    <article class="card ready">
+      <div class="card-head"><h3><span class="num">6</span>Checkpoints + --from/--to</h3><span class="pill ready">Ready</span></div>
+      <ul>
+        <li><code>checkpoint: true</code> → <code>&lt;dir&gt;/&lt;name&gt;.parquet</code> (GeoParquet)</li>
+        <li>Under localmp, pieces are joined before saving</li>
+        <li><code>--from</code> loads the previous phase's file; stops with an error if it's missing</li>
+        <li><code>output</code> runs only if the run reaches the last phase</li>
+      </ul>
+      <div class="refs">#15</div>
+    </article>
+
+    <article class="card gap">
+      <div class="card-head"><h3><span class="num">7</span>plumber check</h3><span class="pill gap">Gap B</span></div>
+      <ul>
+        <li>Three layers: structural → static (<code>inspect.signature</code>) → runtime probe</li>
+        <li>PASS/WARN/FAIL as text, plus <code>report.json</code></li>
+        <li><code>run()</code> calls it first, as a preflight</li>
+      </ul>
+      <p>The runtime probe has no clear source of test data. See Gap B.</p>
+      <div class="refs">#6</div>
+    </article>
+
+    <article class="card ready">
+      <div class="card-head"><h3><span class="num">8</span>CLI</h3><span class="pill ready">Ready</span></div>
+      <ul>
+        <li><code>plumber run</code> with <code>--strategy --worker-count --chunk-size --params --from --to --config</code></li>
+        <li><code>plumber check</code> with <code>--config</code></li>
+      </ul>
+      <div class="refs">#4 #8 #15</div>
+    </article>
+
+    <article class="card ready">
+      <div class="card-head"><h3><span class="num">9</span>Shim example + docs</h3><span class="pill ready">Ready</span></div>
+      <ul>
+        <li><code>plumber.examples.adapter_shim</code></li>
+        <li>Tested in plumber's own test suite so it can't drift</li>
+      </ul>
+      <div class="refs">#7 #11</div>
+    </article>
+
+  </div>
+</section>
+
+<section>
+  <h2>The two gaps</h2>
+
+  <div class="gapbox">
+    <h3>Gap A: who calls the user's input function, and what is DatasetRef for?</h3>
+    <p>Two decisions on the map don't fit together:</p>
+<pre class="block">#4 / #14:  input = the user's function → returns a GeoDataFrame
+#5:        execute(phases, data: DatasetRef, ...)   # "LocalSequential loads the DatasetRef"</pre>
+    <p>If the user's function does the read, <code>execute</code> never needs a <code>DatasetRef</code> to load. The same question applies to <code>Result.ref</code> and the user's <code>output</code> function. The fix touches components 1, 2, 4 and 5a.</p>
+    <div class="options">
+      <div class="option">
+        <h3>Option 1: run() reads first</h3>
+<pre class="block">gdf = input_fn(**input_params)
+execute(phases, data=gdf, ...)</pre>
+        <p>Simple. <code>DatasetRef</code> would only name checkpoint files and <code>Result.ref</code>.</p>
+      </div>
+      <div class="option">
+        <h3>Option 2: the strategy reads</h3>
+<pre class="block">execute(phases,
+        input=(input_fn, params), ...)</pre>
+        <p>The strategy decides where the read runs. This keeps the Beam/Spark seam from #9: each worker reads its own share, so nothing has to be loaded in one place first.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="gapbox">
+    <h3>Gap B: what data does check's runtime probe run on?</h3>
+    <p>#6 says "a tiny synthetic GeoDataFrame." But a real phase like <code>dissolve(by="zone_id")</code> crashes on made-up data that has no <code>zone_id</code> column. That gives a false FAIL.</p>
+    <div class="options">
+      <div class="option">
+        <h3>Sample the real input</h3>
+        <p>Probe on <code>input_fn(...).head(n)</code>. Uses real columns, but costs a real read (for example, a BigQuery query).</p>
+      </div>
+      <div class="option">
+        <h3>User-supplied sample</h3>
+        <p>Let the user point to a small sample file in the config.</p>
+      </div>
+      <div class="option">
+        <h3>Skip without a sample</h3>
+        <p>Skip the runtime probe when no sample is given. Structural and static checks still run.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="verdict">
+  <h2>Verdict</h2>
+  <p><strong>Ready for tickets now:</strong> 0 · 3 · 5b · 6 · 8 · 9</p>
+  <p><strong>Waiting on two grilling tickets:</strong> 1 · 2 · 4 · 5a (Gap A) and 7 (Gap B)</p>
+  <p>Next step: open both gaps as grilling tickets on the map, and grill Gap A first, since it blocks the most components. Neither gap is in the <code>plan.md</code> draft yet, so both go into its Deferred list as open questions.</p>
+</section>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"default"});</script>
+</body>
+</html>
