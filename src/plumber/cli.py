@@ -4,6 +4,7 @@ import argparse
 
 import yaml
 
+from plumber.check import check, format_report, write_report
 from plumber.run import load_config, run
 
 
@@ -22,14 +23,25 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="plumber")
     commands = parser.add_subparsers(dest="command", required=True)
     run_parser = commands.add_parser("run", help="run the pipeline in a config file")
-    run_parser.add_argument("--config", default="plumber.yaml", help="default: ./plumber.yaml")
-    run_parser.add_argument(
-        "--params",
-        nargs="+",
-        default=[],
-        metavar="key=value",
-        help="override phase params (applies to every phase that has that param)",
-    )
+    check_parser = commands.add_parser("check", help="check the config without running phases")
+    for sub in (run_parser, check_parser):
+        sub.add_argument("--config", default="plumber.yaml", help="default: ./plumber.yaml")
+        sub.add_argument(
+            "--params",
+            nargs="+",
+            default=[],
+            metavar="key=value",
+            help="override phase params (applies to every phase that has that param)",
+        )
     args = parser.parse_args(argv)
 
-    run(load_config(args.config), parse_params(args.params))
+    config = load_config(args.config)
+    overrides = parse_params(args.params)
+    if args.command == "check":
+        report = check(config, overrides)
+        print(format_report(report))
+        write_report(report)
+        if not report["ok"]:
+            raise SystemExit(1)
+    else:
+        run(config, overrides)

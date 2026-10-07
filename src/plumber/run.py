@@ -5,6 +5,8 @@ from pathlib import Path
 
 import yaml
 
+from plumber.check import preflight
+from plumber.entries import name_of, params_of
 from plumber.local import LocalSequential
 from plumber.protocols import Step
 from plumber.resolver import resolve
@@ -12,14 +14,6 @@ from plumber.resolver import resolve
 
 def load_config(path="plumber.yaml"):
     return yaml.safe_load(Path(path).read_text())
-
-
-def params_of(entry):
-    return entry.get("params") or {}
-
-
-def name_of(entry):
-    return entry.get("name", entry["path"])
 
 
 def bind(entry):
@@ -71,6 +65,7 @@ def build_steps(config, overrides):
 
 def run(config, overrides=None):
     """Run the pipeline. This never reads data; the strategy calls the user's functions."""
+    preflight(config)
     input_pair = bind(config["input"])
     steps = build_steps(config, overrides or {})
     if config.get("output"):

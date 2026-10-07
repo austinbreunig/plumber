@@ -55,7 +55,7 @@ def test_override_matching_no_phase_warns_and_is_ignored(project):
 def test_run_rejects_io_path_without_attr(project, block):
     config = yaml.safe_load((project / "plumber.yaml").read_text())
     config[block]["path"] = "myio"
-    with pytest.raises(ValueError, match="':attr' is required"):
+    with pytest.raises(SystemExit, match="':attr' is required"):  # the preflight catches it
         run(config)
 
 
