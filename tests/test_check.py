@@ -183,3 +183,97 @@ def test_run_preflight_does_not_block_on_warn(project):
     with pytest.warns(UserWarning):
         run(good_config(), {"typo_key": 1})
     assert (project / "out" / "result.parquet").exists()
+
+
+# ---- runtime probe ----------------------------------------------------------------------
+
+
+def probe_config(*phases, partitionable=True):
+    """The good config with its phases replaced and a sample file configured."""
+    from myio import load_fixture
+
+    load_fixture().to_parquet("sample.parquet")
+    config = good_config()
+    config["phases"] = [
+        {"path": f"phases.{name}:run", "partitionable": partitionable, "params": {}}
+        for name in phases
+    ]
+    config["check"] = {"sample": "sample.parquet"}
+    return config
+
+
+def test_no_sample_leaves_result_unchanged(project):
+    report = check(good_config())
+    assert report["runtime_probe"] == "not run (no check.sample)"
+    assert set(statuses(report).values()) == {"PASS"}
+
+
+def test_good_phases_pass_the_probe(project):
+    config = probe_config("scale_value")
+    config["phases"][0]["params"] = {"factor": 2}
+    report = check(config)
+    assert report["ok"] is True
+    assert statuses(report)["P1"] == "PASS"
+    assert report["runtime_probe"] == "ran on sample.parquet"
+
+
+def test_shared_state_in_partitionable_phase_fails(project):
+    report = check(probe_config("counter_state"))
+    assert statuses(report)["P1"] == "FAIL"
+    assert "shared state" in messages(report, "P1")
+    assert report["ok"] is False
+
+
+def test_shared_state_is_not_checked_when_not_partitionable(project):
+    report = check(probe_config("counter_state", partitionable=False))
+    assert statuses(report)["P1"] == "PASS"
+
+
+def test_crs_change_is_a_warning(project):
+    report = check(probe_config("reproject"))
+    assert statuses(report)["P1"] == "WARN"
+    assert "CRS" in messages(report, "P1")
+    assert report["ok"] is True
+
+
+def test_dropped_column_is_a_warning(project):
+    report = check(probe_config("drop_value"))
+    assert statuses(report)["P1"] == "WARN"
+    assert "value" in messages(report, "P1")
+
+
+def test_crash_fails_and_skips_later_phases(project):
+    report = check(probe_config("reproject", "crash", "reproject"))
+    assert statuses(report)["P2"] == "FAIL"
+    assert "zone_id" in messages(report, "P2")
+    assert statuses(report)["P3"] == "SKIP"
+    assert report["ok"] is False
+
+
+def test_skip_status_is_written_to_report_json(project):
+    from plumber.check import write_report
+
+    write_report(check(probe_config("crash", "reproject")))
+    rows = json.loads(Path("report.json").read_text())["rows"]
+    assert {row["label"]: row["status"] for row in rows}["P2"] == "SKIP"
+
+
+def test_missing_sample_file_fails(project):
+    config = good_config()
+    config["check"] = {"sample": "nope.parquet"}
+    report = check(config)
+    assert statuses(report)["check.sample"] == "FAIL"
+
+
+def test_probe_does_not_run_when_static_checks_fail(project):
+    config = probe_config("scale_value")
+    config["phases"][0]["path"] = "phases.nope:run"
+    report = check(config)
+    assert "not run" in report["runtime_probe"]
+
+
+def test_run_preflight_never_runs_the_probe(project):
+    config = probe_config("counter_state")
+    config["output"] = None
+    with pytest.warns(UserWarning):  # no output: result discarded
+        run(config)  # the probe would FAIL counter_state; run must not probe
