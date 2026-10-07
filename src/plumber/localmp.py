@@ -11,6 +11,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import pandas as pd
 
+from plumber.checkpoint import checkpoint_dir, write_checkpoint
 from plumber.protocols import Result
 
 ROW = "_plumber_row"  # input row number, carried through the phases to restore order
@@ -62,6 +63,11 @@ class LocalMultiprocess:
                     if pieces is not None:
                         data, pieces = join(pieces), None
                     data = step.fn(data, **step.params)
+                if step.checkpoint:
+                    # Gather point: whole data in input order, write one file, split again.
+                    data = gather(pieces) if pieces is not None else data.drop(columns=ROW)
+                    write_checkpoint(data, checkpoint_dir(run_params), step.name)
+                    data, pieces = tag_rows(data), None
         data = gather(pieces) if pieces is not None else data.drop(columns=ROW)
         if output is not None:
             output_fn, output_params = output

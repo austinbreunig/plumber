@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from plumber.check import preflight
+from plumber.checkpoint import DEFAULT_DIR
 from plumber.entries import name_of, params_of
 from plumber.local import LocalSequential
 from plumber.localmp import LocalMultiprocess
@@ -82,4 +83,5 @@ def run(config, overrides=None):
     else:
         warnings.warn("No `output:` in config: result discarded", stacklevel=2)
         output_pair = None
-    return build_strategy(config).execute(input_pair, steps, output_pair, {})
+    run_params = {"checkpoint_dir": (config.get("checkpoints") or {}).get("dir", DEFAULT_DIR)}
+    return build_strategy(config).execute(input_pair, steps, output_pair, run_params)
