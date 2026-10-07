@@ -3,7 +3,7 @@
 Layers, cheapest first:
   structural  config only, nothing imported
   static      import + inspect.signature, no phase code runs
-(The runtime probe is a separate ticket.)
+  runtime     probe.py runs the phases on `check.sample` (only from `plumber check`, not `run`)
 
 Every check is a plain function `fn(config, overrides) -> list[Finding]`. To add a check,
 write one and append it to STRUCTURAL_CHECKS or STATIC_CHECKS.
@@ -14,9 +14,10 @@ import json
 from typing import NamedTuple
 
 from plumber.entries import name_of, params_of
+from plumber.probe import probe
 from plumber.resolver import resolve
 
-PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
+PASS, WARN, FAIL, SKIP = "PASS", "WARN", "FAIL", "SKIP"
 
 # Which `execution.partition:` keys each strategy understands. A key a strategy does not list
 # is a FAIL (so `worker_count` only works with `localmp`).
@@ -182,7 +183,7 @@ def row_for(label, findings, config):
     mine = [f for f in findings if f.label == label]
     entry = entries.get(label)
     statuses = {f.status for f in mine}
-    status = FAIL if FAIL in statuses else WARN if WARN in statuses else PASS
+    status = next((s for s in (FAIL, WARN, SKIP) if s in statuses), PASS)
     return {
         "label": label,
         "name": name_of(entry) if entry and "path" in entry else None,
@@ -191,12 +192,29 @@ def row_for(label, findings, config):
     }
 
 
-def check(config, overrides=None):
-    """Run the structural then static layers. Returns the report as a plain dict."""
+def run_probe(config, overrides, findings):
+    """The runtime layer. Returns (findings, note for the report's `runtime_probe` line)."""
+    sample = (config.get("check") or {}).get("sample")
+    if not sample:
+        return [], "not run (no check.sample)"
+    if any(f.status == FAIL for f in findings):
+        return [], "not run (fix the FAIL rows first)"
+    return [Finding(*t) for t in probe(sample, config["phases"], overrides)], f"ran on {sample}"
+
+
+def check(config, overrides=None, runtime=True):
+    """Run the structural, static and (if `runtime` and `check.sample` is set) runtime layers.
+
+    Returns the report as a plain dict. `run`'s preflight passes runtime=False.
+    """
     overrides = overrides or {}
     findings = []
     for check_fn in STRUCTURAL_CHECKS + STATIC_CHECKS:
         findings += check_fn(config, overrides)
+    probe_note = "not run (no check.sample)"
+    if runtime:
+        probe_findings, probe_note = run_probe(config, overrides, findings)
+        findings += probe_findings
 
     labels = [label for label, _, _ in entries_to_check(config)]
     labels += [f.label for f in findings if f.label not in labels]  # config-level rows, once
@@ -205,7 +223,7 @@ def check(config, overrides=None):
     return {
         "ok": all(row["status"] != FAIL for row in rows),
         "rows": rows,
-        "runtime_probe": "not run (no check.sample)",
+        "runtime_probe": probe_note,
     }
 
 
@@ -228,6 +246,6 @@ def write_report(report, path="report.json"):
 
 def preflight(config):
     """Run before `run`. Any FAIL stops the run; a WARN never does."""
-    report = check(config)
+    report = check(config, runtime=False)
     if not report["ok"]:
         raise SystemExit("plumber check failed, nothing was run:\n" + format_report(report))

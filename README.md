@@ -35,6 +35,10 @@ row order, and the output function runs once on the joined data.
 
 _TBD — established during Discovery/POC._
 
+## Wrapping your own function
+
+See [`docs/adapter-shim.md`](docs/adapter-shim.md).
+
 ## Development workflow
 
 Follows the `ab_spatial` playbook: Discovery → POC → Tracer → MVP → Refinement.
