@@ -44,10 +44,18 @@ def test_override_only_reaches_phases_that_have_that_param(project):
     assert second.params == {}
 
 
-def test_override_matching_no_phase_is_an_error(project):
+def test_override_matching_no_phase_is_silently_ignored(project):
     config = {"phases": [phase(params={"factor": 2})]}
-    with pytest.raises(ValueError, match="nope"):
-        build_steps(config, {"nope": 1})
+    [step] = build_steps(config, {"nope": 1})
+    assert step.params == {"factor": 2}
+
+
+@pytest.mark.parametrize("block", ["input", "output"])
+def test_run_rejects_io_path_without_attr(project, block):
+    config = yaml.safe_load((project / "plumber.yaml").read_text())
+    config[block]["path"] = "myio"
+    with pytest.raises(ValueError, match="':attr' is required"):
+        run(config)
 
 
 def test_name_defaults_to_path_and_phases_keep_config_order(project):

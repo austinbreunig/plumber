@@ -33,7 +33,7 @@
             ];
 
             SHELL = "${pkgs.bashInteractive}/bin/bash";
-            
+
             UV_PYTHON = "${python}/bin/python";
             UV_PYTHON_DOWNLOADS = "never";
 

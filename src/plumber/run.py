@@ -14,20 +14,29 @@ def load_config(path="plumber.yaml"):
     return yaml.safe_load(Path(path).read_text())
 
 
+def params_of(entry):
+    return entry.get("params") or {}
+
+
+def name_of(entry):
+    return entry.get("name", entry["path"])
+
+
 def bind(entry):
     """Turn an `input:`/`output:` block into a (function, params) pair."""
-    return resolve(entry["path"]), entry.get("params") or {}
+    return resolve(entry["path"]), params_of(entry)
 
 
 def build_step(entry, overrides):
     """Build one Step. CLI overrides replace config params, key by key (shallow merge).
 
     An override only applies to phases that already list that key in their params.
+    Keys no phase lists are ignored (typos are not caught).
     """
-    params = entry.get("params") or {}
+    params = params_of(entry)
     params = {key: overrides.get(key, value) for key, value in params.items()}
     return Step(
-        name=entry.get("name", entry["path"]),
+        name=name_of(entry),
         fn=resolve(entry["path"]),
         params=params,
         partitionable=entry["partitionable"],
@@ -36,22 +45,17 @@ def build_step(entry, overrides):
 
 
 def build_steps(config, overrides):
-    """Build every Step in config order. Names must be unique; overrides must match a phase."""
+    """Build every Step in config order. Names must be unique."""
     entries = config["phases"]
     first_seen = {}
     for number, entry in enumerate(entries, start=1):
-        name = entry.get("name", entry["path"])
+        name = name_of(entry)
         if name in first_seen:
             raise ValueError(
                 f"Duplicate phase name {name!r}: entries {first_seen[name]} and {number}. "
                 "Give each a distinct `name:`."
             )
         first_seen[name] = number
-
-    known = {key for entry in entries for key in (entry.get("params") or {})}
-    unused = sorted(set(overrides) - known)
-    if unused:
-        raise ValueError(f"--params {', '.join(unused)}: no phase has a param with that name")
 
     return [build_step(entry, overrides) for entry in entries]
 
