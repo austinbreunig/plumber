@@ -8,6 +8,7 @@ import yaml
 from plumber.check import preflight
 from plumber.entries import name_of, params_of
 from plumber.local import LocalSequential
+from plumber.localmp import LocalMultiprocess
 from plumber.protocols import Step
 from plumber.resolver import resolve
 
@@ -63,6 +64,14 @@ def build_steps(config, overrides):
     return [build_step(entry, overrides) for entry in entries]
 
 
+def build_strategy(config):
+    """Pick the execution strategy from `execution:` (default `local`). `check` has vetted it."""
+    execution = config.get("execution") or {}
+    if execution.get("strategy", "local") == "localmp":
+        return LocalMultiprocess(execution["partition"])
+    return LocalSequential()
+
+
 def run(config, overrides=None):
     """Run the pipeline. This never reads data; the strategy calls the user's functions."""
     preflight(config)
@@ -73,4 +82,4 @@ def run(config, overrides=None):
     else:
         warnings.warn("No `output:` in config: result discarded", stacklevel=2)
         output_pair = None
-    return LocalSequential().execute(input_pair, steps, output_pair, {})
+    return build_strategy(config).execute(input_pair, steps, output_pair, {})

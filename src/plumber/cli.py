@@ -19,6 +19,23 @@ def parse_params(pairs):
     return params
 
 
+def apply_execution_flags(config, args):
+    """Copy --strategy and the partition flags into `config["execution"]`.
+
+    Any partition flag replaces the config's whole `partition:` block, so a flag never
+    ends up beside a different key from the file.
+    """
+    execution = dict(config.get("execution") or {})
+    if args.strategy:
+        execution["strategy"] = args.strategy
+    flags = {"by": args.by, "chunk_size": args.chunk_size, "worker_count": args.worker_count}
+    given = {key: value for key, value in flags.items() if value is not None}
+    if given:
+        execution["partition"] = given
+    if execution:
+        config["execution"] = execution
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="plumber")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -33,9 +50,14 @@ def main(argv=None):
             metavar="key=value",
             help="override phase params (applies to every phase that has that param)",
         )
+        sub.add_argument("--strategy", help="execution strategy: local or localmp")
+        sub.add_argument("--by", nargs="+", metavar="column", help="localmp: one piece per value")
+        sub.add_argument("--chunk-size", type=int, help="localmp: rows per piece")
+        sub.add_argument("--worker-count", type=int, help="localmp: split into N pieces")
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
+    apply_execution_flags(config, args)
     overrides = parse_params(args.params)
     if args.command == "check":
         report = check(config, overrides)

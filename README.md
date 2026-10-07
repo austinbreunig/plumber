@@ -12,6 +12,25 @@ new logic drops into a fixed slot instead of modifying a monolith.
 Phase 0 (Discovery). No implementation yet. See `.scratch/discovery/map.md` for
 the wayfinder map of open decisions, and `plan.md` once Discovery completes.
 
+## Execution strategy
+
+Default is `local` (one process). Switch to `localmp` (worker processes) with no phase
+changes:
+
+```yaml
+execution:
+  strategy: localmp
+  partition:            # pick exactly one
+    by: [zone_id]       # one piece per unique value combination
+    # chunk_size: 10000 # fixed-size row slices, in order
+    # worker_count: 8   # N roughly equal slices
+```
+
+CLI flags override the config: `--strategy localmp`, `--by zone_id`, `--chunk-size 10000`,
+`--worker-count 8`. Any partition flag replaces the config's whole `partition:` block.
+A phase with `partitionable: false` gets the joined data once. The output keeps the input's
+row order, and the output function runs once on the joined data.
+
 ## Setup
 
 _TBD — established during Discovery/POC._

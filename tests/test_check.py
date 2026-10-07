@@ -111,7 +111,7 @@ def test_required_param_missing_fails(project):
 
 def test_partition_key_unused_by_strategy_fails(project):
     config = good_config()
-    config["partition"] = {"worker_count": 4}
+    config["execution"] = {"strategy": "local", "partition": {"worker_count": 4}}
     report = check(config)
     assert statuses(report)["partition"] == "FAIL"
     assert "worker_count" in messages(report, "partition")
@@ -119,8 +119,31 @@ def test_partition_key_unused_by_strategy_fails(project):
 
 def test_unknown_strategy_fails(project):
     config = good_config()
-    config["strategy"] = "warp-drive"
+    config["execution"] = {"strategy": "warp-drive"}
     assert statuses(check(config))["strategy"] == "FAIL"
+
+
+def localmp_config(**partition):
+    config = good_config()
+    config["execution"] = {"strategy": "localmp", "partition": partition}
+    return config
+
+
+def test_localmp_accepts_each_partition_key(project):
+    for partition in ({"by": ["zone"]}, {"chunk_size": 4}, {"worker_count": 2}):
+        assert check(localmp_config(**partition))["ok"], partition
+
+
+def test_localmp_needs_exactly_one_partition_key(project):
+    for partition in ({}, {"by": ["zone"], "chunk_size": 4}):
+        report = check(localmp_config(**partition))
+        assert statuses(report)["partition"] == "FAIL", partition
+
+
+def test_localmp_partition_values_are_checked(project):
+    for partition in ({"by": "zone"}, {"chunk_size": 0}, {"worker_count": "x"}):
+        report = check(localmp_config(**partition))
+        assert statuses(report)["partition"] == "FAIL", partition
 
 
 def test_typo_in_config_params_fails(project):

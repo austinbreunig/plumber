@@ -18,13 +18,13 @@ from plumber.resolver import resolve
 
 PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 
-# Which `partition:` keys each execution strategy understands. A key a strategy does not list
-# is a FAIL. The multiprocess ticket adds its row here, e.g.
-#   "local-multiprocess": {"worker_count", "chunk_size", "by"}
+# Which `execution.partition:` keys each strategy understands. A key a strategy does not list
+# is a FAIL (so `worker_count` only works with `localmp`).
 STRATEGY_PARTITION_KEYS = {
-    "local-sequential": set(),
+    "local": set(),
+    "localmp": {"by", "chunk_size", "worker_count"},
 }
-DEFAULT_STRATEGY = "local-sequential"
+DEFAULT_STRATEGY = "local"
 
 
 class Finding(NamedTuple):
@@ -67,18 +67,43 @@ def check_checkpoints_block(config, overrides):
     return []
 
 
+def partition_value_problem(key, value):
+    """Why one partition value is wrong, or None if it is fine."""
+    if key == "by":
+        if not (isinstance(value, list) and value and all(isinstance(v, str) for v in value)):
+            return "`by` must be a list of column names"
+    elif not (isinstance(value, int) and not isinstance(value, bool) and value > 0):
+        return f"`{key}` must be a whole number above 0"
+    return None
+
+
 def check_partition_suits_strategy(config, overrides):
-    """The partition spec may only use keys the chosen strategy understands."""
-    strategy = config.get("strategy", DEFAULT_STRATEGY)
+    """The partition spec must suit the strategy: known keys only, and `localmp` needs
+    exactly one of them, with a sensible value."""
+    execution = config.get("execution") or {}
+    if not isinstance(execution, dict):
+        return [Finding("execution", FAIL, "`execution` must be a mapping")]
+    strategy = execution.get("strategy", DEFAULT_STRATEGY)
     if strategy not in STRATEGY_PARTITION_KEYS:
         known = ", ".join(sorted(STRATEGY_PARTITION_KEYS))
         return [Finding("strategy", FAIL, f"unknown strategy {strategy!r} (known: {known})")]
+    partition = execution.get("partition") or {}
+    if not isinstance(partition, dict):
+        return [Finding("partition", FAIL, "`partition` must be a mapping")]
     allowed = STRATEGY_PARTITION_KEYS[strategy]
-    return [
+    findings = [
         Finding("partition", FAIL, f"key {key!r} is not used by strategy {strategy!r}")
-        for key in (config.get("partition") or {})
+        for key in partition
         if key not in allowed
     ]
+    if allowed and len(partition) != 1:
+        keys = ", ".join(sorted(allowed))
+        findings.append(Finding("partition", FAIL, f"strategy {strategy!r} needs one of: {keys}"))
+    for key, value in partition.items():
+        problem = key in allowed and partition_value_problem(key, value)
+        if problem:
+            findings.append(Finding("partition", FAIL, problem))
+    return findings
 
 
 STRUCTURAL_CHECKS = [check_phase_fields, check_checkpoints_block, check_partition_suits_strategy]
