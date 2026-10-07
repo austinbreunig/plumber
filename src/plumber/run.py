@@ -62,7 +62,9 @@ def build_steps(config, overrides):
     listed = {key for entry in entries for key in params_of(entry)}
     for key in overrides:
         if key not in listed:
-            warnings.warn(f"--params {key}: no phase lists this param, so it was ignored")
+            warnings.warn(
+                f"--params {key}: no phase lists this param, so it was ignored", stacklevel=2
+            )
 
     return [build_step(entry, overrides) for entry in entries]
 
