@@ -54,6 +54,8 @@ def main(argv=None):
         sub.add_argument("--by", nargs="+", metavar="column", help="localmp: one piece per value")
         sub.add_argument("--chunk-size", type=int, help="localmp: rows per piece")
         sub.add_argument("--worker-count", type=int, help="localmp: split into N pieces")
+    run_parser.add_argument("--from", dest="start", metavar="phase", help="start at this phase")
+    run_parser.add_argument("--to", dest="stop", metavar="phase", help="stop after this phase")
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
@@ -66,4 +68,4 @@ def main(argv=None):
         if not report["ok"]:
             raise SystemExit(1)
     else:
-        run(config, overrides)
+        run(config, overrides, args.start, args.stop)
