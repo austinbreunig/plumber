@@ -3,8 +3,16 @@
 Geospatial pipeline framework. See `README.md` for the one-paragraph pitch and
 `.scratch/discovery/map.md` for the wayfinder map of open Discovery decisions.
 
-Currently in **Phase 0 (Discovery)** — no implementation. The design doc that
-seeded this project is captured on the wayfinder map's Notes.
+Discovery decisions are on the wayfinder map. The Tracer slice (#20 skeleton,
+#21 config + CLI overrides) is implemented. The design doc that seeded this
+project is captured on the wayfinder map's Notes.
+
+## Dev commands
+
+```bash
+nix develop --command uv run --extra dev pytest -q
+nix develop --command uv run --extra dev ruff check .
+```
 
 ## Agent skills
 

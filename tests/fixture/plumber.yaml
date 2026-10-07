@@ -1,0 +1,20 @@
+input:
+  path: myio:load_fixture
+  params: {}
+
+phases:
+  - path: phases.scale_value:run
+    partitionable: true
+    params: {factor: 2}
+
+  - path: phases.dedupe_zone_leader:run
+    partitionable: false
+    params: {}
+
+  - path: phases.tag_percentile:run
+    partitionable: true
+    params: {threshold: 15}
+
+output:
+  path: myio:write_parquet
+  params: {path: out/result.parquet}
