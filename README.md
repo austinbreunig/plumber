@@ -16,6 +16,10 @@ the wayfinder map of open decisions, and `plan.md` once Discovery completes.
 
 _TBD — established during Discovery/POC._
 
+## Wrapping your own function
+
+See [`docs/adapter-shim.md`](docs/adapter-shim.md).
+
 ## Development workflow
 
 Follows the `ab_spatial` playbook: Discovery → POC → Tracer → MVP → Refinement.
