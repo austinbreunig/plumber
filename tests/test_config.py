@@ -44,9 +44,10 @@ def test_override_only_reaches_phases_that_have_that_param(project):
     assert second.params == {}
 
 
-def test_override_matching_no_phase_is_silently_ignored(project):
+def test_override_matching_no_phase_warns_and_is_ignored(project):
     config = {"phases": [phase(params={"factor": 2})]}
-    [step] = build_steps(config, {"nope": 1})
+    with pytest.warns(UserWarning, match="--params nope"):
+        [step] = build_steps(config, {"nope": 1})
     assert step.params == {"factor": 2}
 
 

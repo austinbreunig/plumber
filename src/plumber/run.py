@@ -31,7 +31,6 @@ def build_step(entry, overrides):
     """Build one Step. CLI overrides replace config params, key by key (shallow merge).
 
     An override only applies to phases that already list that key in their params.
-    Keys no phase lists are ignored (typos are not caught).
     """
     params = params_of(entry)
     params = {key: overrides.get(key, value) for key, value in params.items()}
@@ -45,7 +44,10 @@ def build_step(entry, overrides):
 
 
 def build_steps(config, overrides):
-    """Build every Step in config order. Names must be unique."""
+    """Build every Step in config order. Names must be unique.
+
+    Warns about `--params` keys that no phase lists (likely typos).
+    """
     entries = config["phases"]
     first_seen = {}
     for number, entry in enumerate(entries, start=1):
@@ -56,6 +58,11 @@ def build_steps(config, overrides):
                 "Give each a distinct `name:`."
             )
         first_seen[name] = number
+
+    listed = {key for entry in entries for key in params_of(entry)}
+    for key in overrides:
+        if key not in listed:
+            warnings.warn(f"--params {key}: no phase lists this param, so it was ignored")
 
     return [build_step(entry, overrides) for entry in entries]
 
