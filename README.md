@@ -9,8 +9,42 @@ new logic drops into a fixed slot instead of modifying a monolith.
 
 ## Status
 
-Phase 0 (Discovery). No implementation yet. See `.scratch/discovery/map.md` for
-the wayfinder map of open decisions, and `plan.md` once Discovery completes.
+Phase 3 (Tracer). `run`, `check`, `localmp`, checkpoints and partial runs work. See
+[issue #1](https://github.com/austinbreunig/plumber/issues/1) for the wayfinder map and
+`plan.md` for the design.
+
+## Quickstart
+
+```bash
+pipx install ab-plumber
+```
+
+In any repo, write your input function, one or more phases, and an output function.
+A phase is `run(gdf, **params) -> gdf`. Then add a `plumber.yaml`:
+
+```yaml
+input:
+  path: myio:load_roads
+  params: {path: data/roads.parquet}
+phases:
+  - path: phases.buffer:run
+    partitionable: true
+    params: {distance: 10}
+output:
+  path: myio:write_parquet
+  params: {path: out/roads.parquet}
+```
+
+Check it, then run it:
+
+```bash
+plumber check                  # PASS/WARN/FAIL per phase, also writes report.json
+plumber run                    # one process (local)
+plumber run --strategy localmp --worker-count 4   # worker processes, same output
+```
+
+Optional: `checkpoint: true` on a slow phase saves its output, and
+`plumber run --from <phase> --to <phase>` runs a slice.
 
 ## Execution strategy
 
