@@ -300,3 +300,20 @@ def test_run_preflight_never_runs_the_probe(project):
     config["output"] = None
     with pytest.warns(UserWarning):  # no output: result discarded
         run(config)  # the probe would FAIL counter_state; run must not probe
+
+
+# ---- review fixes -----------------------------------------------------------------------
+
+
+def test_checkpoints_block_without_dir_passes(project):
+    config = probe_config("scale_value")
+    config["checkpoints"] = {}
+    assert check(config)["ok"]
+
+
+def test_missing_input_is_a_fail(project):
+    config = probe_config("scale_value")
+    del config["input"]
+    report = check(config)
+    assert not report["ok"]
+    assert any(row["label"] == "input" and row["status"] == "FAIL" for row in report["rows"])

@@ -102,7 +102,7 @@ def test_to_middle_phase_without_checkpoint_warns_and_runs(project, spy):
     config = yaml.safe_load((project / "plumber.yaml").read_text())
     config["phases"][0]["checkpoint"] = False
     (project / "plumber.yaml").write_text(yaml.safe_dump(config))
-    with pytest.warns(UserWarning, match="result discarded"):
+    with pytest.warns(UserWarning, match="has no checkpoint: result discarded"):
         main(["run", "--to", "scale_value"])
     assert spy.call[1] == ["scale_value"]
     assert spy.call[2] is None

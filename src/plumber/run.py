@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from plumber.check import preflight
+from plumber.check import DEFAULT_STRATEGY, preflight
 from plumber.checkpoint import DEFAULT_DIR, checkpoint_path, read_checkpoint
 from plumber.entries import name_of, params_of
 from plumber.local import LocalSequential
@@ -67,9 +67,9 @@ def build_steps(config, overrides):
 
 
 def build_strategy(config):
-    """Pick the execution strategy from `execution:` (default `local`). `check` has vetted it."""
+    """Pick the execution strategy from `execution:` (default `local`); `check` vetted it."""
     execution = config.get("execution") or {}
-    if execution.get("strategy", "local") == "localmp":
+    if execution.get("strategy", DEFAULT_STRATEGY) == "localmp":
         return LocalMultiprocess(execution["partition"])
     return LocalSequential()
 
@@ -125,7 +125,7 @@ def run(config, overrides=None, start=None, stop=None):
         output_pair = None
         if not all_steps[last].checkpoint:
             warnings.warn(
-                f"--to {stop}: {stop} has no checkpoint, so its result discarded; running anyway",
+                f"--to {stop}: {stop} has no checkpoint: result discarded; runs anyway",
                 stacklevel=2,
             )
     steps = all_steps[first : last + 1]

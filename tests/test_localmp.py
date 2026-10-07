@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from plumber.cli import main
-from plumber.localmp import LocalMultiprocess, gather, split, tag_rows
+from plumber.localmp import LocalMultiprocess, join, split
 from plumber.protocols import Step
 
 FIXTURE = Path(__file__).parent / "fixture"
@@ -33,11 +33,18 @@ def test_split_worker_count_gives_roughly_equal_slices():
     assert [len(p) for p in pieces] == [4, 3, 3]
 
 
-def test_gather_restores_input_row_order():
-    pieces = split(tag_rows(frame()), {"by": ["zone"]})  # a-rows first, then b-rows
-    joined = gather(pieces)
+def test_join_restores_input_row_order():
+    data = frame()
+    pieces = split(data, {"by": ["zone"]})  # a-rows first, then b-rows
+    joined = join(pieces, data.index)
     assert joined["id"].tolist() == list(range(10))
     assert list(joined.columns) == ["id", "zone"]
+
+
+def test_split_by_keeps_rows_with_null_keys():
+    data = pd.DataFrame({"id": range(4), "zone": ["a", None, "a", None]})
+    pieces = split(data, {"by": ["zone"]})
+    assert sum(len(p) for p in pieces) == 4
 
 
 # Phases for the strategy tests. Module level so worker processes can pickle them.
@@ -49,6 +56,27 @@ def add(data, amount):
 
 def keep_first(data):
     return data.head(1)
+
+
+def seen_columns(data):
+    assert list(data.columns) == ["id", "zone"]  # no helper column leaks into phases
+    return data
+
+
+def rebuild_without_zone(data):
+    return data[["id"]].copy()
+
+
+def test_phases_never_see_a_helper_column():
+    steps = [Step("seen", seen_columns, {}, True, False)]
+    result = LocalMultiprocess({"chunk_size": 3}).execute((frame, {}), steps, None, {})
+    assert list(result.collect().columns) == ["id", "zone"]
+
+
+def test_phase_that_drops_columns_keeps_row_order():
+    steps = [Step("drop", rebuild_without_zone, {}, True, False)]
+    result = LocalMultiprocess({"by": ["zone"]}).execute((frame, {}), steps, None, {})
+    assert result.collect()["id"].tolist() == list(range(10))
 
 
 def test_non_partitionable_phase_sees_all_rows_once():

@@ -67,7 +67,7 @@ row order, and the output function runs once on the joined data.
 
 ## Setup
 
-_TBD — established during Discovery/POC._
+Install with `pipx install ab-plumber`, then follow the [Quickstart](#quickstart).
 
 ## Wrapping your own function
 

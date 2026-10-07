@@ -11,13 +11,10 @@ write one and append it to STRUCTURAL_CHECKS or STATIC_CHECKS.
 
 import inspect
 import json
-from typing import NamedTuple
 
-from plumber.entries import name_of, params_of
+from plumber.entries import FAIL, PASS, SKIP, WARN, Finding, name_of, params_of, phase_label
 from plumber.probe import probe
 from plumber.resolver import resolve
-
-PASS, WARN, FAIL, SKIP = "PASS", "WARN", "FAIL", "SKIP"
 
 # Which `execution.partition:` keys each strategy understands. A key a strategy does not list
 # is a FAIL (so `worker_count` only works with `localmp`).
@@ -28,16 +25,8 @@ STRATEGY_PARTITION_KEYS = {
 DEFAULT_STRATEGY = "local"
 
 
-class Finding(NamedTuple):
-    """One problem. `label` is the report row it belongs to ("input", "P1", "partition", ...)."""
-
-    label: str
-    status: str
-    message: str
-
-
 def phase_labels(config):
-    return [f"P{number}" for number in range(1, len(config.get("phases") or []) + 1)]
+    return [phase_label(number) for number in range(1, len(config.get("phases") or []) + 1)]
 
 
 # ---- structural layer -------------------------------------------------------------------
@@ -63,7 +52,7 @@ def check_checkpoints_block(config, overrides):
         return []
     if not isinstance(block, dict):
         return [Finding("checkpoints", FAIL, "`checkpoints` must be a mapping with a `dir`")]
-    if not isinstance(block.get("dir"), str):
+    if "dir" in block and not isinstance(block["dir"], str):
         return [Finding("checkpoints", FAIL, "`checkpoints.dir` must be a path string")]
     return []
 
@@ -107,7 +96,18 @@ def check_partition_suits_strategy(config, overrides):
     return findings
 
 
-STRUCTURAL_CHECKS = [check_phase_fields, check_checkpoints_block, check_partition_suits_strategy]
+def check_input_present(config, overrides):
+    if not config.get("input"):
+        return [Finding("input", FAIL, "missing `input:` block")]
+    return []
+
+
+STRUCTURAL_CHECKS = [
+    check_input_present,
+    check_phase_fields,
+    check_checkpoints_block,
+    check_partition_suits_strategy,
+]
 
 
 # ---- static layer -----------------------------------------------------------------------
@@ -199,7 +199,7 @@ def run_probe(config, overrides, findings):
         return [], "not run (no check.sample)"
     if any(f.status == FAIL for f in findings):
         return [], "not run (fix the FAIL rows first)"
-    return [Finding(*t) for t in probe(sample, config["phases"], overrides)], f"ran on {sample}"
+    return probe(sample, config["phases"], overrides), f"ran on {sample}"
 
 
 def check(config, overrides=None, runtime=True):
@@ -217,8 +217,7 @@ def check(config, overrides=None, runtime=True):
         findings += probe_findings
 
     labels = [label for label, _, _ in entries_to_check(config)]
-    labels += [f.label for f in findings if f.label not in labels]  # config-level rows, once
-    labels = list(dict.fromkeys(labels))
+    labels += [f.label for f in findings if f.label not in labels]  # config-level rows
     rows = [row_for(label, findings, config) for label in labels]
     return {
         "ok": all(row["status"] != FAIL for row in rows),

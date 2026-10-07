@@ -3,7 +3,8 @@ name: publish
 # Build and publish to PyPI on a GitHub Release, using PyPI Trusted Publishing
 # (OIDC) — no API tokens or secrets required. Configure the trusted publisher at
 # https://pypi.org/manage/project/ab-plumber/settings/publishing/ (or via the
-# "pending publisher" flow before the first release).
+# "pending publisher" flow before the first release). The publisher must name workflow
+# `publish.yml` and environment `pypi`, or the upload is rejected.
 
 on:
   release:
