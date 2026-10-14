@@ -317,3 +317,13 @@ def test_missing_input_is_a_fail(project):
     report = check(config)
     assert not report["ok"]
     assert any(row["label"] == "input" and row["status"] == "FAIL" for row in report["rows"])
+
+
+def test_modules_in_plumber_folder_pass_check(project):
+    plumber_dir = project / ".plumber"
+    plumber_dir.mkdir()
+    shutil.move(project / "myio.py", plumber_dir / "myio.py")
+    report = check(good_config())
+    assert statuses(report)["input"] == "PASS"
+    assert statuses(report)["output"] == "PASS"
+    assert report["ok"] is True

@@ -20,7 +20,8 @@ pipx install ab-plumber
 ```
 
 In any repo, write your input function, one or more phases, and an output function.
-A phase is `run(gdf, **params) -> gdf`. Then add a `plumber.yaml`:
+A phase is `run(gdf, **params) -> gdf`. Put pipeline glue (input, output, shims) in a `.plumber/`
+folder, or in the project folder. Then add a `plumber.yaml`:
 
 ```yaml
 input:

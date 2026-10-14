@@ -26,7 +26,7 @@ def run(gdf, *, network_path, tolerance):
 
 ```yaml
 phases:
-  - path: myshims.snap:run
+  - path: snap:run
     partitionable: true
     params: {network_path: data/network.parquet, tolerance: 2.0}
 ```
@@ -36,7 +36,10 @@ The working example is `src/plumber/examples/snap_shim.py`. The test suite runs 
 
 ## How to write one by hand
 
-1. Copy `snap_shim.py` into your project (for example `myshims/snap.py`).
+1. Copy `snap_shim.py` into your project's `.plumber/` folder (for example
+   `.plumber/snap.py`). Plumber finds modules there, so pipeline glue stays apart from
+   your project code. Input and output functions can live there too. Modules in the project
+   folder still work. If a name is in both, `.plumber/` wins.
 2. Keep the name `run`. First argument is the data. Everything else is a keyword param.
 3. Turn things YAML cannot hold into plain values. Pass a file path, not a loaded network.
    Load it inside `run`.
