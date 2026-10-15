@@ -11,6 +11,7 @@ write one and append it to STRUCTURAL_CHECKS or STATIC_CHECKS.
 
 import inspect
 import json
+import warnings
 
 from plumber.entries import FAIL, PASS, SKIP, WARN, Finding, name_of, params_of, phase_label
 from plumber.probe import probe
@@ -96,6 +97,29 @@ def check_partition_suits_strategy(config, overrides):
     return findings
 
 
+def check_unique_names(config, overrides):
+    """Two phases may not share a name (checkpoints and `--from`/`--to` go by name)."""
+    findings = []
+    first_seen = {}
+    entries = config.get("phases") or []
+    for number, entry in enumerate(entries, start=1):
+        name = entry.get("name", entry.get("path"))
+        if name is None:
+            continue  # check_phase_fields already reported the missing path
+        if name in first_seen:
+            findings.append(
+                Finding(
+                    phase_label(number),
+                    FAIL,
+                    f"Duplicate phase name {name!r}: entries {first_seen[name]} and {number}. "
+                    "Give each a distinct `name:`.",
+                )
+            )
+        else:
+            first_seen[name] = number
+    return findings
+
+
 def check_input_present(config, overrides):
     if not config.get("input"):
         return [Finding("input", FAIL, "missing `input:` block")]
@@ -105,6 +129,7 @@ def check_input_present(config, overrides):
 STRUCTURAL_CHECKS = [
     check_input_present,
     check_phase_fields,
+    check_unique_names,
     check_checkpoints_block,
     check_partition_suits_strategy,
 ]
@@ -243,8 +268,11 @@ def write_report(report, path="report.json"):
         json.dump(report, file, indent=2)
 
 
-def preflight(config):
-    """Run before `run`. Any FAIL stops the run; a WARN never does."""
-    report = check(config, runtime=False)
+def preflight(config, overrides=None):
+    """Run before `run`. Any FAIL stops the run; a WARN is shown as a warning, never stops it."""
+    report = check(config, overrides, runtime=False)
     if not report["ok"]:
         raise SystemExit("plumber check failed, nothing was run:\n" + format_report(report))
+    for row in report["rows"]:
+        for message in row["messages"]:
+            warnings.warn(f"{row['label']} {message}", stacklevel=3)

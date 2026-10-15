@@ -44,11 +44,11 @@ def test_override_only_reaches_phases_that_have_that_param(project):
     assert second.params == {}
 
 
-def test_override_matching_no_phase_warns_and_is_ignored(project):
-    config = {"phases": [phase(params={"factor": 2})]}
-    with pytest.warns(UserWarning, match="--params nope"):
-        [step] = build_steps(config, {"nope": 1})
-    assert step.params == {"factor": 2}
+def test_unknown_override_warns_exactly_once_from_run(project):
+    config = yaml.safe_load((project / "plumber.yaml").read_text())
+    with pytest.warns(UserWarning, match="--params") as caught:
+        run(config, {"nope": 1})
+    assert len([w for w in caught if "nope" in str(w.message)]) == 1
 
 
 @pytest.mark.parametrize("block", ["input", "output"])
@@ -67,10 +67,11 @@ def test_name_defaults_to_path_and_phases_keep_config_order(project):
     assert [s.name for s in steps] == ["phases.scale_value:run", "tag"]
 
 
-def test_duplicate_names_are_a_hard_error_naming_both_entries(project):
-    config = {"phases": [phase(), phase(params={"factor": 3})]}
-    with pytest.raises(ValueError, match=r"phases\.scale_value:run.*entries 1 and 2"):
-        build_steps(config, {})
+def test_run_stops_on_duplicate_names(project):
+    config = yaml.safe_load((project / "plumber.yaml").read_text())
+    config["phases"] = [phase(), phase(params={"factor": 3})]
+    with pytest.raises(SystemExit, match=r"phases\.scale_value:run.*entries 1 and 2"):
+        run(config)
 
 
 def test_same_module_twice_works_with_distinct_names(project):
