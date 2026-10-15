@@ -6,13 +6,16 @@ whole dataset (a non-partitionable phase, the output function, later checkpoints
 through `join`.
 """
 
+import logging
+import logging.handlers
+import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import pandas as pd
 
 from plumber.checkpoint import write_checkpoint
-from plumber.protocols import Result, load, save
+from plumber.protocols import Result, load, run_phase, save, section, tag_records
 
 
 def split(data, partition):
@@ -41,6 +44,41 @@ def whole(data, pieces, order):
     return data if pieces is None else join(pieces, order)
 
 
+_worker_queue = None  # set in each worker by `start_worker`; a queue can't travel with a task
+
+
+def start_worker(queue, level):
+    """Worker setup: the only Run log handler is one that sends records to `queue`.
+
+    Dropping inherited handlers (fork) and setting the level by hand (spawn) makes both
+    start methods behave the same.
+    """
+    global _worker_queue
+    _worker_queue = queue
+    root = logging.getLogger()
+    root.handlers[:] = [logging.handlers.QueueHandler(queue)]
+    root.setLevel(level)
+
+
+def run_piece(step, piece):
+    """Run a phase on one piece in a worker, then mark the end of its log lines."""
+    try:
+        with tag_records(step.name):
+            return step.fn(piece, **step.params)
+    finally:
+        _worker_queue.put(None)
+
+
+def replay(queue, count):
+    """Emit the workers' records here, until `count` pieces have said they are done."""
+    while count:
+        record = queue.get()
+        if record is None:
+            count -= 1
+        else:
+            logging.getLogger(record.name).handle(record)
+
+
 class LocalMultiprocess:
     def __init__(self, partition):
         self.partition = partition
@@ -50,17 +88,24 @@ class LocalMultiprocess:
         workers = self.partition.get("worker_count")
         pieces = None  # set while the data is split; None means `data` holds everything
         order = None  # the index of `data` when it was split
-        with ProcessPoolExecutor(max_workers=workers) as pool:
+        queue = multiprocessing.Queue()
+        level = logging.getLogger().getEffectiveLevel()
+        with ProcessPoolExecutor(
+            max_workers=workers, initializer=start_worker, initargs=(queue, level)
+        ) as pool:
             for step in steps:
                 if step.partitionable:
                     if pieces is None:
                         order = data.index
                         pieces = split(data, self.partition)
-                    futures = [pool.submit(step.fn, piece, **step.params) for piece in pieces]
-                    pieces = [future.result() for future in futures]
+                    with section(step.name):
+                        futures = [pool.submit(run_piece, step, piece) for piece in pieces]
+                        results = [future.result() for future in futures]
+                        replay(queue, len(pieces))  # all of this phase's lines, before its end
+                    pieces = results
                 else:
                     data, pieces = whole(data, pieces, order), None
-                    data = step.fn(data, **step.params)
+                    data = run_phase(step, data)
                 if step.checkpoint:
                     # Gather point: whole data in input order, write one file, split again.
                     data, pieces = whole(data, pieces, order), None

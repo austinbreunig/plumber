@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import shutil
 import sys
 from pathlib import Path
@@ -71,3 +72,40 @@ def test_crashing_phase_still_gets_a_closing_line(project, caplog):
     lines = [record.getMessage() for record in caplog.records]
     assert "=== end phases.crash:run: failed ===" in lines
     assert "=== run end ===" not in lines
+
+
+def headings(lines):
+    return [line for line in lines if line.startswith("===")]
+
+
+@pytest.fixture(params=["fork", "spawn"])
+def start_method(request):
+    """Run the test under each start method this platform allows."""
+    if request.param not in multiprocessing.get_all_start_methods():
+        pytest.skip(f"{request.param} not available here")
+    previous = multiprocessing.get_start_method()
+    multiprocessing.set_start_method(request.param, force=True)
+    yield request.param
+    multiprocessing.set_start_method(previous, force=True)
+
+
+def test_localmp_run_log_matches_local_under_each_start_method(project, caplog, start_method):
+    local = run_log(caplog)
+    caplog.clear()
+    mp = run_log(caplog, "--strategy", "localmp", "--chunk-size", "2")
+
+    assert headings(mp) == headings(local)
+
+
+def test_localmp_worker_lines_sit_in_their_phase_tagged_by_worker(project, caplog, start_method):
+    lines = run_log(caplog, "--strategy", "localmp", "--chunk-size", "1")
+
+    start = lines.index(f"=== phase {SCALE} ===")
+    end = lines.index(f"=== end {SCALE}: ok ===")
+    worker_lines = [line for line in lines if line.endswith("scaling by 2")]
+    assert len(worker_lines) > 1  # one per piece
+    for line in worker_lines:
+        assert start < lines.index(line) < end
+        assert line.startswith(f"[{SCALE}|") and "MainProcess" not in line
+    # Everything before the next heading: phase N is fully delivered first.
+    assert end < lines.index(f"=== phase {DEDUPE} ===")
