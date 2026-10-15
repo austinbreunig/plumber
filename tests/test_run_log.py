@@ -1,5 +1,4 @@
 import logging
-import multiprocessing
 import shutil
 import sys
 from pathlib import Path
@@ -78,17 +77,6 @@ def headings(lines):
     return [line for line in lines if line.startswith("===")]
 
 
-@pytest.fixture(params=["fork", "spawn"])
-def start_method(request):
-    """Run the test under each start method this platform allows."""
-    if request.param not in multiprocessing.get_all_start_methods():
-        pytest.skip(f"{request.param} not available here")
-    previous = multiprocessing.get_start_method()
-    multiprocessing.set_start_method(request.param, force=True)
-    yield request.param
-    multiprocessing.set_start_method(previous, force=True)
-
-
 def test_localmp_run_log_matches_local_under_each_start_method(project, caplog, start_method):
     local = run_log(caplog)
     caplog.clear()
@@ -107,6 +95,7 @@ def test_localmp_worker_lines_sit_in_their_phase_tagged_by_worker(project, caplo
     for line in worker_lines:
         assert start < lines.index(line) < end
         assert line.startswith(f"[{SCALE}|") and "MainProcess" not in line
+        assert line.count("[") == 1  # tagged once
     # Everything before the next heading: phase N is fully delivered first.
     assert end < lines.index(f"=== phase {DEDUPE} ===")
 

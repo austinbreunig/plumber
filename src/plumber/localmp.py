@@ -15,7 +15,15 @@ import numpy as np
 import pandas as pd
 
 from plumber.checkpoint import write_checkpoint
-from plumber.protocols import Result, load, run_phase, save, section, tag_records
+from plumber.protocols import (
+    Result,
+    load,
+    run_phase,
+    save,
+    section,
+    tag_records,
+    with_user_level,
+)
 
 
 def split(data, partition):
@@ -50,11 +58,12 @@ _worker_queue = None  # set in each worker by `start_worker`; a queue can't trav
 def start_worker(queue, level):
     """Worker setup: the only Run log handler is one that sends records to `queue`.
 
-    Dropping inherited handlers (fork) and setting the level by hand (spawn) makes both
+    Dropping inherited handlers and tagger (fork) and setting the level by hand (spawn) makes both
     start methods behave the same.
     """
     global _worker_queue
     _worker_queue = queue
+    logging.setLogRecordFactory(logging.LogRecord)  # fork copies the main process's tagger
     root = logging.getLogger()
     root.handlers[:] = [logging.handlers.QueueHandler(queue)]
     root.setLevel(level)
@@ -83,6 +92,7 @@ class LocalMultiprocess:
     def __init__(self, partition):
         self.partition = partition
 
+    @with_user_level
     def execute(self, input, steps, output, run_params):
         data = load(input)
         workers = self.partition.get("worker_count")

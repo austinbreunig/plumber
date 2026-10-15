@@ -6,6 +6,7 @@ import logging
 import yaml
 
 from plumber.check import check, format_report, write_report
+from plumber.protocols import parse_user_level
 from plumber.run import load_config, run
 
 
@@ -18,6 +19,15 @@ def parse_params(pairs):
             raise SystemExit(f"Bad --params {pair!r}: expected key=value")
         params[key] = yaml.safe_load(value)
     return params
+
+
+def level_name(text):
+    """argparse type for --user-level: fail clearly on a bad name."""
+    try:
+        parse_user_level(text)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from None
+    return text
 
 
 def apply_execution_flags(config, args):
@@ -55,6 +65,11 @@ def main(argv=None):
         sub.add_argument("--by", nargs="+", metavar="column", help="localmp: one piece per value")
         sub.add_argument("--chunk-size", type=int, help="localmp: rows per piece")
         sub.add_argument("--worker-count", type=int, help="localmp: split into N pieces")
+        sub.add_argument(
+            "--user-level",
+            type=level_name,
+            help="show your own log lines at this level or above, or off (default: INFO)",
+        )
     run_parser.add_argument("--from", dest="start", metavar="phase", help="start at this phase")
     run_parser.add_argument("--to", dest="stop", metavar="phase", help="stop after this phase")
     args = parser.parse_args(argv)
@@ -62,6 +77,8 @@ def main(argv=None):
 
     config = load_config(args.config)
     apply_execution_flags(config, args)
+    if args.user_level:
+        config["user_level"] = args.user_level
     overrides = parse_params(args.params)
     if args.command == "check":
         report = check(config, overrides)

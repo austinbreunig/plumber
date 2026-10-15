@@ -15,6 +15,7 @@ import warnings
 
 from plumber.entries import FAIL, PASS, SKIP, WARN, Finding, name_of, params_of, phase_label
 from plumber.probe import probe
+from plumber.protocols import parse_user_level
 from plumber.resolver import resolve
 
 # Which `execution.partition:` keys each strategy understands. A key a strategy does not list
@@ -120,6 +121,14 @@ def check_unique_names(config, overrides):
     return findings
 
 
+def check_user_level(config, overrides):
+    try:
+        parse_user_level(config.get("user_level", "INFO"))
+    except ValueError as error:
+        return [Finding("user_level", FAIL, str(error))]
+    return []
+
+
 def check_input_present(config, overrides):
     if not config.get("input"):
         return [Finding("input", FAIL, "missing `input:` block")]
@@ -131,6 +140,7 @@ STRUCTURAL_CHECKS = [
     check_phase_fields,
     check_unique_names,
     check_checkpoints_block,
+    check_user_level,
     check_partition_suits_strategy,
 ]
 
