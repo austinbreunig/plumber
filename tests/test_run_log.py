@@ -133,3 +133,54 @@ def test_from_to_shows_headings_only_for_phases_that_ran(project, caplog):
     lines = run_log(caplog, "--from", DEDUPE, "--to", DEDUPE)
 
     assert [line for line in lines if line.startswith("=== phase")] == [f"=== phase {DEDUPE} ==="]
+
+
+def crash_in_phase(strategy=None):
+    config = yaml.safe_load(Path("plumber.yaml").read_text())
+    config["phases"][0]["path"] = "phases.log_then_crash:run"
+    if strategy:
+        config["execution"] = {"strategy": strategy, "partition": {"chunk_size": 2}}
+    Path("plumber.yaml").write_text(yaml.safe_dump(config))
+
+
+def test_localmp_crash_keeps_worker_lines_in_their_section(project, caplog, start_method):
+    crash_in_phase("localmp")
+    caplog.set_level(logging.INFO)
+
+    with pytest.raises(RuntimeError):
+        main(["run"])
+
+    lines = [record.getMessage() for record in caplog.records]
+    name = "phases.log_then_crash:run"
+    start = lines.index(f"=== phase {name} ===")
+    end = lines.index(f"=== end {name}: failed ===")
+    assert any("about to crash" in line for line in lines[start:end])
+
+
+def test_crash_is_logged_on_the_plumber_log(project, caplog):
+    crash_in_phase()
+    caplog.set_level(logging.INFO)
+
+    with pytest.raises(RuntimeError):
+        main(["run"])
+
+    errors = [r for r in caplog.records if r.name == "plumber" and r.levelno >= logging.ERROR]
+    assert errors and "boom" in errors[0].getMessage()
+
+
+def test_phase_named_output_gets_a_phase_heading(project, caplog):
+    config = yaml.safe_load(Path("plumber.yaml").read_text())
+    config["phases"][0]["name"] = "output"
+    Path("plumber.yaml").write_text(yaml.safe_dump(config))
+
+    assert "=== phase output ===" in run_log(caplog)
+
+
+def test_from_checkpoint_has_no_input_heading(project, caplog):
+    checkpoint_scale()
+    main(["run", "--to", SCALE])
+    caplog.clear()
+    lines = run_log(caplog, "--from", DEDUPE)
+
+    assert "=== input ===" not in lines
+    assert "=== output ===" in lines

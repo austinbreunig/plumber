@@ -9,7 +9,7 @@ through `join`.
 import logging
 import logging.handlers
 import multiprocessing
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, wait
 
 import numpy as np
 import pandas as pd
@@ -110,8 +110,15 @@ class LocalMultiprocess:
                         pieces = split(data, self.partition)
                     with section(step.name):
                         futures = [pool.submit(run_piece, step, piece) for piece in pieces]
-                        results = [future.result() for future in futures]
-                        replay(queue, len(pieces))  # all of this phase's lines, before its end
+                        try:
+                            results = [future.result() for future in futures]
+                        finally:
+                            # Even if a piece raised: stop pieces not started, let the running
+                            # ones finish, then show every line they made before the phase ends.
+                            for future in futures:
+                                future.cancel()
+                            wait(futures)
+                            replay(queue, sum(not future.cancelled() for future in futures))
                         pieces = results
                         if step.checkpoint:
                             # Gather point: whole data in input order, write one file, split again.

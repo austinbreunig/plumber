@@ -10,7 +10,7 @@ import yaml
 from plumber.cli import main
 from plumber.local import LocalSequential
 from plumber.localmp import LocalMultiprocess
-from plumber.protocols import Step
+from plumber.protocols import Step, plumber_log
 
 FIXTURE = Path(__file__).parent / "fixture"
 
@@ -137,3 +137,26 @@ def test_localmp_workers_follow_user_level_under_each_start_method(caplog, start
     lines = [(r.name, r.getMessage()) for r in caplog.records]
     assert set(user_lines(lines)) == {"my.phase ERROR", "pyproj.crs ERROR"}
     assert "=== phase chatty ===" in plumber_lines(lines)
+
+
+def write_raw_off():
+    text = Path("plumber.yaml").read_text()
+    Path("plumber.yaml").write_text(text + "\nuser_level: off\n")  # unquoted: YAML reads False
+
+
+def test_unquoted_off_in_config_silences_user_log(project, caplog):
+    write_raw_off()
+    assert not [line for line in cli_lines(caplog) if "scaling by" in line]
+
+
+def test_unquoted_off_in_config_passes_check(project, capsys):
+    write_raw_off()
+    main(["check"])
+    assert "user_level" not in capsys.readouterr().out
+
+
+def test_plumber_debug_lines_show_when_user_level_is_high(caplog):
+    caplog.set_level(logging.DEBUG)
+    step = Step("noisy", lambda data: plumber_log.debug("deep detail") or data, {}, False, False)
+    LocalSequential().execute((lambda: [1], {}), [step], None, {"user_level": "ERROR"})
+    assert "deep detail" in plumber_lines([(r.name, r.getMessage()) for r in caplog.records])

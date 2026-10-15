@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Callable, Generic, Optional, Protocol, TypeVar
 
-from plumber.checkpoint import write_checkpoint
+from plumber.checkpoint import read_checkpoint, write_checkpoint
 
 Payload = TypeVar("Payload")
 
@@ -49,6 +49,8 @@ def parse_user_level(name):
 
     Raises ValueError for anything else.
     """
+    if name is False:  # YAML reads an unquoted `off` as False
+        return OFF
     upper = str(name).upper()
     if upper == "OFF":
         return OFF
@@ -67,7 +69,7 @@ def user_level(run_params):
     root = logging.getLogger()
     before = root.level, plumber_log.level
     root.setLevel(parse_user_level(run_params.get("user_level", DEFAULT_USER_LEVEL)))
-    plumber_log.setLevel(logging.INFO)
+    plumber_log.setLevel(logging.DEBUG)
     try:
         yield
     finally:
@@ -75,12 +77,9 @@ def user_level(run_params):
         plumber_log.setLevel(before[1])
 
 
-def phase_heading(name):
-    """Open a section of the Run log: `=== phase <name> ===`.
-
-    Input and output functions get one too, as `=== input ===` / `=== output ===`.
-    """
-    plumber_log.info("=== %s ===", name if name in ("input", "output") else f"phase {name}")
+def phase_heading(label):
+    """Open a section of the Run log: `=== <label> ===`."""
+    plumber_log.info("=== %s ===", label)
 
 
 def phase_closing(name, ok):
@@ -112,14 +111,21 @@ def tag_records(name):
 
 
 @contextmanager
-def section(name):
-    """The shared phase wrapper: heading, tagged User log, closing line (even on a crash)."""
-    phase_heading(name)
+def section(name, label=None):
+    """The shared phase wrapper: heading, tagged User log, closing line (even on a crash).
+
+    `label` is the heading text; it defaults to `phase <name>`. A crash is logged on the
+    Plumber log, with its traceback, before the closing line.
+    """
+    phase_heading(label or f"phase {name}")
     ok = False
     try:
         with tag_records(name):
             yield
         ok = True
+    except Exception as error:
+        plumber_log.exception("phase %s failed: %r", name, error)
+        raise
     finally:
         phase_closing(name, ok)
 
@@ -149,9 +155,11 @@ def run_phase(step, data, run_params):
 
 
 def load(input: Bound):
-    """Call the user's input function."""
+    """Call the user's input function. A checkpoint read (`--from`) gets no section."""
     fn, params = input
-    with section("input"):
+    if fn is read_checkpoint:
+        return fn(**params)
+    with section("input", "input"):
         return fn(**params)
 
 
@@ -159,7 +167,7 @@ def save(output: Optional[Bound], data) -> None:
     """Call the user's output function, if there is one."""
     if output is not None:
         fn, params = output
-        with section("output"):
+        with section("output", "output"):
             fn(data, **params)
 
 
