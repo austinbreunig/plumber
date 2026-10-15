@@ -1,6 +1,7 @@
 """The `plumber` command line."""
 
 import argparse
+import logging
 
 import yaml
 
@@ -57,6 +58,7 @@ def main(argv=None):
     run_parser.add_argument("--from", dest="start", metavar="phase", help="start at this phase")
     run_parser.add_argument("--to", dest="stop", metavar="phase", help="stop after this phase")
     args = parser.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     config = load_config(args.config)
     apply_execution_flags(config, args)

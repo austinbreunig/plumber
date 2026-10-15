@@ -11,7 +11,7 @@ from plumber.checkpoint import DEFAULT_DIR, checkpoint_path, read_checkpoint
 from plumber.entries import merge_params, name_of, params_of
 from plumber.local import LocalSequential
 from plumber.localmp import LocalMultiprocess
-from plumber.protocols import Step
+from plumber.protocols import Step, plumber_log
 from plumber.resolver import resolve
 
 
@@ -105,4 +105,7 @@ def run(config, overrides=None, start=None, stop=None):
             )
     steps = all_steps[first : last + 1]
     run_params = {"checkpoint_dir": directory}
-    return build_strategy(config).execute(input_pair, steps, output_pair, run_params)
+    plumber_log.info("=== run start: %d phases ===", len(steps))
+    result = build_strategy(config).execute(input_pair, steps, output_pair, run_params)
+    plumber_log.info("=== run end ===")
+    return result

@@ -41,5 +41,5 @@ Lines written by the user's own functions with ordinary Python logging. Plumber 
 _Avoid_: App log
 
 **Phase heading**:
-The **Plumber log** line that opens each phase's section in the **Run log**, so the log reads phase by phase.
+The **Plumber log** line that opens each phase's section in the **Run log**, so the log reads phase by phase. The input and output functions get one too (`input`, `output`), so their lines are never orphaned.
 _Avoid_: Banner, title log, separator
