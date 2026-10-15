@@ -102,14 +102,14 @@ class LocalMultiprocess:
                         futures = [pool.submit(run_piece, step, piece) for piece in pieces]
                         results = [future.result() for future in futures]
                         replay(queue, len(pieces))  # all of this phase's lines, before its end
-                    pieces = results
+                        pieces = results
+                        if step.checkpoint:
+                            # Gather point: whole data in input order, write one file, split again.
+                            data, pieces = whole(data, pieces, order), None
+                            write_checkpoint(data, run_params["checkpoint_dir"], step.name)
                 else:
                     data, pieces = whole(data, pieces, order), None
-                    data = run_phase(step, data)
-                if step.checkpoint:
-                    # Gather point: whole data in input order, write one file, split again.
-                    data, pieces = whole(data, pieces, order), None
-                    write_checkpoint(data, run_params["checkpoint_dir"], step.name)
+                    data = run_phase(step, data, run_params)
         data = whole(data, pieces, order)
         save(output, data)
         return Result(data)

@@ -109,3 +109,38 @@ def test_localmp_worker_lines_sit_in_their_phase_tagged_by_worker(project, caplo
         assert line.startswith(f"[{SCALE}|") and "MainProcess" not in line
     # Everything before the next heading: phase N is fully delivered first.
     assert end < lines.index(f"=== phase {DEDUPE} ===")
+
+
+def checkpoint_scale(strategy=None):
+    config = yaml.safe_load(Path("plumber.yaml").read_text())
+    config["phases"][0]["checkpoint"] = True
+    if strategy:
+        config["execution"] = {"strategy": strategy, "partition": {"worker_count": 2}}
+    Path("plumber.yaml").write_text(yaml.safe_dump(config))
+
+
+def saved_line_is_under_scale(lines):
+    saved = [i for i, line in enumerate(lines) if line.startswith("checkpoint saved: ")]
+    assert len(saved) == 1
+    assert lines[saved[0]].endswith(f"{SCALE}.parquet")
+    start = lines.index(f"=== phase {SCALE} ===")
+    assert start < saved[0] < lines.index(f"=== end {SCALE}: ok ===")
+
+
+def test_checkpoint_saved_line_sits_under_its_phase_in_local(project, caplog):
+    checkpoint_scale()
+    saved_line_is_under_scale(run_log(caplog))
+
+
+def test_checkpoint_saved_line_sits_under_its_phase_in_localmp(project, caplog):
+    checkpoint_scale("localmp")
+    saved_line_is_under_scale(run_log(caplog))
+
+
+def test_from_to_shows_headings_only_for_phases_that_ran(project, caplog):
+    checkpoint_scale()
+    main(["run", "--to", SCALE])
+    caplog.clear()
+    lines = run_log(caplog, "--from", DEDUPE, "--to", DEDUPE)
+
+    assert [line for line in lines if line.startswith("=== phase")] == [f"=== phase {DEDUPE} ==="]

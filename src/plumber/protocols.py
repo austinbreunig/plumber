@@ -5,6 +5,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Generic, Optional, Protocol, TypeVar
 
+from plumber.checkpoint import write_checkpoint
+
 Payload = TypeVar("Payload")
 
 
@@ -86,10 +88,17 @@ def section(name):
         phase_closing(name, ok)
 
 
-def run_phase(step, data):
-    """Call one phase as `fn(data, **params)` inside its section."""
+def run_phase(step, data, run_params):
+    """Call one phase as `fn(data, **params)` inside its section.
+
+    If the step opts in, its checkpoint is saved inside the section too, so the
+    "checkpoint saved" line sits under that phase's heading.
+    """
     with section(step.name):
-        return step.fn(data, **step.params)
+        data = step.fn(data, **step.params)
+        if step.checkpoint:
+            write_checkpoint(data, run_params["checkpoint_dir"], step.name)
+        return data
 
 
 def load(input: Bound):
