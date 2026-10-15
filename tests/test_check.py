@@ -218,8 +218,13 @@ def probe_config(*phases, partitionable=True):
     load_fixture().to_parquet("sample.parquet")
     config = good_config()
     config["phases"] = [
-        {"path": f"phases.{name}:run", "partitionable": partitionable, "params": {}}
-        for name in phases
+        {
+            "path": f"phases.{name}:run",
+            "name": f"{number}-{name}",  # distinct names, so a repeated phase is allowed
+            "partitionable": partitionable,
+            "params": {},
+        }
+        for number, name in enumerate(phases, start=1)
     ]
     config["check"] = {"sample": "sample.parquet"}
     return config
@@ -327,3 +332,11 @@ def test_modules_in_plumber_folder_pass_check(project):
     assert statuses(report)["input"] == "PASS"
     assert statuses(report)["output"] == "PASS"
     assert report["ok"] is True
+
+
+def test_duplicate_phase_names_fail_naming_both_entries(project):
+    config = good_config()
+    config["phases"] = [config["phases"][0], dict(config["phases"][0])]
+    report = check(config)
+    assert statuses(report)["P2"] == "FAIL"
+    assert "entries 1 and 2" in messages(report, "P2")

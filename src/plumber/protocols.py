@@ -6,12 +6,6 @@ from typing import Any, Callable, Generic, Optional, Protocol, TypeVar
 Payload = TypeVar("Payload")
 
 
-class PhaseModule(Protocol[Payload]):
-    """A resolved phase: a plain function `run(data, **params) -> data`."""
-
-    def __call__(self, data: Payload, **params: Any) -> Payload: ...
-
-
 @dataclass(frozen=True)
 class Step:
     """One configured phase, ready to run."""
@@ -36,6 +30,19 @@ class Result(Generic[Payload]):
 # A pre-bound (function, params) pair. The strategy calls `fn(**params)` (input)
 # or `fn(data, **params)` (output).
 Bound = tuple[Callable, dict[str, Any]]
+
+
+def load(input: Bound):
+    """Call the user's input function."""
+    fn, params = input
+    return fn(**params)
+
+
+def save(output: Optional[Bound], data) -> None:
+    """Call the user's output function, if there is one."""
+    if output is not None:
+        fn, params = output
+        fn(data, **params)
 
 
 class ExecutionStrategy(Protocol[Payload]):

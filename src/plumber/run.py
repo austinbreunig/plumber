@@ -8,7 +8,7 @@ import yaml
 
 from plumber.check import DEFAULT_STRATEGY, preflight
 from plumber.checkpoint import DEFAULT_DIR, checkpoint_path, read_checkpoint
-from plumber.entries import name_of, params_of
+from plumber.entries import merge_params, name_of, params_of
 from plumber.local import LocalSequential
 from plumber.localmp import LocalMultiprocess
 from plumber.protocols import Step
@@ -25,45 +25,19 @@ def bind(entry):
 
 
 def build_step(entry, overrides):
-    """Build one Step. CLI overrides replace config params, key by key (shallow merge).
-
-    An override only applies to phases that already list that key in their params.
-    """
-    params = params_of(entry)
-    params = {key: overrides.get(key, value) for key, value in params.items()}
+    """Build one Step, with CLI overrides merged into its params."""
     return Step(
         name=name_of(entry),
         fn=resolve(entry["path"]),
-        params=params,
+        params=merge_params(entry, overrides),
         partitionable=entry["partitionable"],
         checkpoint=entry.get("checkpoint", False),
     )
 
 
 def build_steps(config, overrides):
-    """Build every Step in config order. Names must be unique.
-
-    Warns about `--params` keys that no phase lists (likely typos).
-    """
-    entries = config["phases"]
-    first_seen = {}
-    for number, entry in enumerate(entries, start=1):
-        name = name_of(entry)
-        if name in first_seen:
-            raise ValueError(
-                f"Duplicate phase name {name!r}: entries {first_seen[name]} and {number}. "
-                "Give each a distinct `name:`."
-            )
-        first_seen[name] = number
-
-    listed = {key for entry in entries for key in params_of(entry)}
-    for key in overrides:
-        if key not in listed:
-            warnings.warn(
-                f"--params {key}: no phase lists this param, so it was ignored", stacklevel=2
-            )
-
-    return [build_step(entry, overrides) for entry in entries]
+    """Build every Step in config order. `preflight` has already vetted the names."""
+    return [build_step(entry, overrides) for entry in config["phases"]]
 
 
 def build_strategy(config):
@@ -105,9 +79,10 @@ def run(config, overrides=None, start=None, stop=None):
     a later `start` swaps the input for the previous checkpoint, and an earlier `stop`
     drops the output. The strategy just gets an ordinary `execute`.
     """
-    preflight(config)
+    overrides = overrides or {}
+    preflight(config, overrides)
     input_pair = bind(config["input"])
-    all_steps = build_steps(config, overrides or {})
+    all_steps = build_steps(config, overrides)
     if config.get("output"):
         output_pair = bind(config["output"])
     else:

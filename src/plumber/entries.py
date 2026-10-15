@@ -23,3 +23,11 @@ def params_of(entry):
 
 def name_of(entry):
     return entry.get("name", entry["path"])
+
+
+def merge_params(entry, overrides):
+    """The entry's params with CLI overrides replacing them key by key (shallow merge).
+
+    An override only applies to a key the entry already lists.
+    """
+    return {key: overrides.get(key, value) for key, value in params_of(entry).items()}

@@ -9,7 +9,7 @@ new logic drops into a fixed slot instead of modifying a monolith.
 
 ## Status
 
-Phase 3 (Tracer). `run`, `check`, `localmp`, checkpoints and partial runs work. See
+Phase 5 (Refinement), v0.1.2. `run`, `check`, `localmp`, checkpoints and partial runs work. See
 [issue #1](https://github.com/austinbreunig/plumber/issues/1) for the wayfinder map and
 `plan.md` for the design.
 

@@ -31,7 +31,7 @@ The `ab_spatial/.claude/` AI skill consumes plumber's public API; its boundary i
 
 ### In
 
-- `PhaseModule` protocol, generic over `Payload` (v1: `GeoDataFrame`) (#3, #12).
+- Phase contract: a phase is a plain `run(gdf, **params) -> gdf` function, enforced by `plumber check` (#3, #12). `Result` keeps the `Payload` generic.
 - `ExecutionStrategy` protocol: `execute(input, steps, output, run_params) -> Result[Payload]`, where `input`/`output` are pre-bound (fn, params) pairs (`output` may be `None`) and each step is a frozen `Step(name, fn, params, partitionable, checkpoint)`. `Result` exposes only `.collect()`. No `DatasetRef`. `run()` owns partial runs by swapping the input pair for plumber's checkpoint reader (#5, #17).
 - `LocalSequential` and `LocalMultiprocess` implementations; under `localmp` the output function runs once, on the joined, re-ordered data (#5, #17).
 - Config schema (YAML): phase list (each entry a `module:attr` path — `:attr` always required, no default to `run` — #2, #16), `input`/`output` (both user-written, dotted-path resolved, symmetric — #4, #14), partitioning, CLI-override precedence.

@@ -11,8 +11,8 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import pandas as pd
 
-from plumber.checkpoint import checkpoint_dir, write_checkpoint
-from plumber.protocols import Result
+from plumber.checkpoint import write_checkpoint
+from plumber.protocols import Result, load, save
 
 
 def split(data, partition):
@@ -46,8 +46,7 @@ class LocalMultiprocess:
         self.partition = partition
 
     def execute(self, input, steps, output, run_params):
-        input_fn, input_params = input
-        data = input_fn(**input_params)
+        data = load(input)
         workers = self.partition.get("worker_count")
         pieces = None  # set while the data is split; None means `data` holds everything
         order = None  # the index of `data` when it was split
@@ -65,9 +64,7 @@ class LocalMultiprocess:
                 if step.checkpoint:
                     # Gather point: whole data in input order, write one file, split again.
                     data, pieces = whole(data, pieces, order), None
-                    write_checkpoint(data, checkpoint_dir(run_params), step.name)
+                    write_checkpoint(data, run_params["checkpoint_dir"], step.name)
         data = whole(data, pieces, order)
-        if output is not None:
-            output_fn, output_params = output
-            output_fn(data, **output_params)
+        save(output, data)
         return Result(data)
