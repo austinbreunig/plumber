@@ -3,6 +3,7 @@
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import wraps
 from typing import Any, Callable, Generic, Optional, Protocol, TypeVar
 
 Payload = TypeVar("Payload")
@@ -35,6 +36,41 @@ Bound = tuple[Callable, dict[str, Any]]
 
 
 plumber_log = logging.getLogger("plumber")
+
+DEFAULT_USER_LEVEL = "INFO"
+LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+OFF = logging.CRITICAL + 1
+
+
+def parse_user_level(name):
+    """Turn a level name (any case) or `off` into a logging level number.
+
+    Raises ValueError for anything else.
+    """
+    upper = str(name).upper()
+    if upper == "OFF":
+        return OFF
+    if upper not in LEVELS:
+        raise ValueError(f"{name!r} is not a level (use {', '.join(LEVELS)} or off)")
+    return getattr(logging, upper)
+
+
+@contextmanager
+def user_level(run_params):
+    """Filter the User log to `run_params["user_level"]` (default INFO) while inside.
+
+    The root logger gets the level, so every logger without a level of its own (user code,
+    library loggers) follows it. The `plumber` logger has its own level, so it always shows.
+    """
+    root = logging.getLogger()
+    before = root.level, plumber_log.level
+    root.setLevel(parse_user_level(run_params.get("user_level", DEFAULT_USER_LEVEL)))
+    plumber_log.setLevel(logging.INFO)
+    try:
+        yield
+    finally:
+        root.setLevel(before[0])
+        plumber_log.setLevel(before[1])
 
 
 def phase_heading(name):
@@ -86,6 +122,17 @@ def section(name):
         phase_closing(name, ok)
 
 
+def with_user_level(execute):
+    """Decorator for a strategy's `execute`: run it inside `user_level(run_params)`."""
+
+    @wraps(execute)
+    def wrapper(self, input, steps, output, run_params):
+        with user_level(run_params):
+            return execute(self, input, steps, output, run_params)
+
+    return wrapper
+
+
 def run_phase(step, data):
     """Call one phase as `fn(data, **params)` inside its section."""
     with section(step.name):
@@ -120,6 +167,8 @@ class ExecutionStrategy(Protocol[Payload]):
         `=== input ===` / `=== phase <name> ===` / `=== output ===`
         `[<name>|<process>] <user message>`
         `=== end <name>: ok ===` or `=== end <name>: failed ===`
+    - Decorate `execute` with `@with_user_level` so `user_level` filters
+      the User log (and never the Plumber log).
     - Ordering: every line of phase N is delivered before the heading of phase N+1.
       How lines travel back to the main process is the strategy's own job.
     """

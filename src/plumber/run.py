@@ -105,6 +105,8 @@ def run(config, overrides=None, start=None, stop=None):
             )
     steps = all_steps[first : last + 1]
     run_params = {"checkpoint_dir": directory}
+    if "user_level" in config:
+        run_params["user_level"] = config["user_level"]
     plumber_log.info("=== run start: %d phases ===", len(steps))
     result = build_strategy(config).execute(input_pair, steps, output_pair, run_params)
     plumber_log.info("=== run end ===")

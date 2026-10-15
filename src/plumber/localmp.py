@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from plumber.checkpoint import write_checkpoint
-from plumber.protocols import Result, load, save
+from plumber.protocols import Result, load, save, with_user_level
 
 
 def split(data, partition):
@@ -45,6 +45,7 @@ class LocalMultiprocess:
     def __init__(self, partition):
         self.partition = partition
 
+    @with_user_level
     def execute(self, input, steps, output, run_params):
         data = load(input)
         workers = self.partition.get("worker_count")
