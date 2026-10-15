@@ -1,5 +1,6 @@
 """Checkpoints: a phase's output saved as GeoParquet. Plumber writes these itself."""
 
+import logging
 from pathlib import Path
 
 import geopandas as gpd
@@ -16,6 +17,7 @@ def write_checkpoint(data, directory, name):
     path = checkpoint_path(directory, name)
     path.parent.mkdir(parents=True, exist_ok=True)
     data.to_parquet(path)
+    logging.getLogger("plumber").info("checkpoint saved: %s", path)
 
 
 def read_checkpoint(directory, name):
