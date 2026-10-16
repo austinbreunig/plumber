@@ -99,7 +99,8 @@ def check_partition_suits_strategy(config, overrides):
 
 
 def check_unique_names(config, overrides):
-    """Two phases may not share a name (checkpoints and `--from`/`--to` go by name)."""
+    """Two phases may not share a name (checkpoints and `--from`/`--to` go by name), and
+    none may be called `input` or `output`."""
     findings = []
     first_seen = {}
     entries = config.get("phases") or []
@@ -107,6 +108,15 @@ def check_unique_names(config, overrides):
         name = entry.get("name", entry.get("path"))
         if name is None:
             continue  # check_phase_fields already reported the missing path
+        if name in ("input", "output"):
+            findings.append(
+                Finding(
+                    phase_label(number),
+                    FAIL,
+                    f"Phase name {name!r} is reserved (the Run log uses it for the "
+                    f"{name} function). Give it a different `name:`.",
+                )
+            )
         if name in first_seen:
             findings.append(
                 Finding(
@@ -235,8 +245,8 @@ def run_probe(config, overrides, findings):
     if any(f.status == FAIL for f in findings):
         return [], "not run (fix the FAIL rows first)"
     with user_level(config):
-        findings = probe(sample, config["phases"], overrides)
-    return findings, f"ran on {sample}"
+        probe_findings = probe(sample, config["phases"], overrides)
+    return probe_findings, f"ran on {sample}"
 
 
 def check(config, overrides=None, runtime=True):

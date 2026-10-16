@@ -15,7 +15,6 @@ from queue import Empty
 import numpy as np
 import pandas as pd
 
-from plumber.checkpoint import write_checkpoint
 from plumber.protocols import (
     Result,
     load,
@@ -24,6 +23,7 @@ from plumber.protocols import (
     save,
     section,
     tag_records,
+    write_step_checkpoint,
 )
 
 
@@ -68,33 +68,63 @@ def start_worker(queue, level):
     root = logging.getLogger()
     root.handlers[:] = [logging.handlers.QueueHandler(queue)]
     root.setLevel(level)
+    plumber_log.setLevel(logging.DEBUG)  # as `user_level` does here; spawn starts unset
 
 
 def run_piece(step, piece):
-    """Run a phase on one piece in a worker, then mark the end of its log lines."""
+    """Run a phase on one piece in a worker, then mark the end of its log lines.
+
+    The mark is the phase name, so a late mark from an earlier phase is never miscounted.
+    """
     try:
         with tag_records(step.name):
             return step.fn(piece, **step.params)
     finally:
-        _worker_queue.put(None)
+        _worker_queue.put(step.name)
 
 
-def replay(queue, count, timeout=5):
-    """Emit the workers' records here, until `count` pieces have said they are done.
+def pump(queue, phase, timeout):
+    """Take one item off the queue and emit it here.
 
-    A piece that died (killed worker, task that would not pickle) never says so, so give
-    up after `timeout` seconds of silence instead of waiting forever.
+    Returns 1 for `phase`'s end mark, 0 for anything else, None if nothing came in `timeout`.
     """
-    while count:
-        try:
-            record = queue.get(timeout=timeout)
-        except Empty:
-            plumber_log.warning("a worker sent no end mark; some of its log lines may be missing")
-            return
-        if record is None:
-            count -= 1
-        else:
-            logging.getLogger(record.name).handle(record)
+    try:
+        item = queue.get(timeout=timeout)
+    except Empty:
+        return None
+    if isinstance(item, str):  # an end mark
+        return int(item == phase)
+    logging.getLogger(item.name).handle(item)
+    return 0
+
+
+def collect(futures, queue, phase, timeout=5):
+    """The pieces' results, with their log lines emitted here as they arrive.
+
+    Even if a piece raised: stop pieces not started, let the running ones finish, then show
+    every line they made before the phase ends. A piece that died (killed worker, task that
+    would not pickle) never sends its end mark, so give up after `timeout` seconds of silence.
+    """
+    marks = 0
+    try:
+        while not all(f.done() for f in futures) and not any(failed(f) for f in futures):
+            marks += pump(queue, phase, 0.1) or 0
+        return [future.result() for future in futures]
+    finally:
+        for future in futures:
+            future.cancel()
+        wait(futures)
+        wanted = sum(not future.cancelled() for future in futures)
+        while marks < wanted:
+            seen = pump(queue, phase, timeout)
+            if seen is None:
+                plumber_log.warning("a worker sent no end mark; its log lines may be missing")
+                break
+            marks += seen
+
+
+def failed(future):
+    return future.done() and not future.cancelled() and future.exception() is not None
 
 
 class LocalMultiprocess:
@@ -108,33 +138,28 @@ class LocalMultiprocess:
         order = None  # the index of `data` when it was split
         queue = multiprocessing.Queue()
         level = logging.getLogger().getEffectiveLevel()
-        with ProcessPoolExecutor(
-            max_workers=workers, initializer=start_worker, initargs=(queue, level)
-        ) as pool:
-            for step in steps:
-                if step.partitionable:
-                    if pieces is None:
-                        order = data.index
-                        pieces = split(data, self.partition)
-                    with section(step.name):
-                        futures = [pool.submit(run_piece, step, piece) for piece in pieces]
-                        try:
-                            results = [future.result() for future in futures]
-                        finally:
-                            # Even if a piece raised: stop pieces not started, let the running
-                            # ones finish, then show every line they made before the phase ends.
-                            for future in futures:
-                                future.cancel()
-                            wait(futures)
-                            replay(queue, sum(not future.cancelled() for future in futures))
-                        pieces = results
-                        if step.checkpoint:
-                            # Gather point: whole data in input order, write one file, split again.
-                            data, pieces = whole(data, pieces, order), None
-                            write_checkpoint(data, run_params["checkpoint_dir"], step.name)
-                else:
-                    data, pieces = whole(data, pieces, order), None
-                    data = run_phase(step, data, run_params)
+        try:
+            with ProcessPoolExecutor(
+                max_workers=workers, initializer=start_worker, initargs=(queue, level)
+            ) as pool:
+                for step in steps:
+                    if step.partitionable:
+                        if pieces is None:
+                            order = data.index
+                            pieces = split(data, self.partition)
+                        with section(step.name):
+                            futures = [pool.submit(run_piece, step, piece) for piece in pieces]
+                            pieces = collect(futures, queue, step.name)
+                            if step.checkpoint:
+                                # Gather point: whole data in input order, write one file,
+                                # split again.
+                                data, pieces = whole(data, pieces, order), None
+                                write_step_checkpoint(step, data, run_params)
+                    else:
+                        data, pieces = whole(data, pieces, order), None
+                        data = run_phase(step, data, run_params)
+        finally:
+            queue.close()
         data = whole(data, pieces, order)
         save(output, data)
         return Result(data)

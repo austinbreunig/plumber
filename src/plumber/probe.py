@@ -6,7 +6,8 @@ It returns `Finding`s, like the other layers.
 
 import geopandas as gpd
 
-from plumber.entries import FAIL, SKIP, WARN, Finding, merge_params, phase_label
+from plumber.entries import FAIL, SKIP, WARN, Finding, merge_params, name_of, phase_label
+from plumber.protocols import tag_records
 from plumber.resolver import resolve
 
 
@@ -45,9 +46,13 @@ def probe(sample, phases, overrides):
         if crashed:
             findings.append(Finding(label, SKIP, "upstream phase failed"))
             continue
-        output, results = probe_phase(
-            resolve(entry["path"]), merge_params(entry, overrides), entry["partitionable"], data
-        )
+        with tag_records(name_of(entry)):
+            output, results = probe_phase(
+                resolve(entry["path"]),
+                merge_params(entry, overrides),
+                entry["partitionable"],
+                data,
+            )
         findings += [Finding(label, status, message) for status, message in results]
         if output is None:
             crashed = True

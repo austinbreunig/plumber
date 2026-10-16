@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable, Generic, Optional, Protocol, TypeVar
 
-from plumber.checkpoint import write_checkpoint
+from plumber.checkpoint import read_checkpoint, write_checkpoint
 
 Payload = TypeVar("Payload")
 
@@ -90,7 +90,9 @@ def tag_records(name):
         if record.name != "plumber" and not record.name.startswith("plumber."):
             # Keep msg and args apart: a bad logging call then fails where logging
             # always handles it (the handler), not inside the user's phase.
-            tag = f"[{name}|{record.processName}] ".replace("%", "%%")
+            tag = f"[{name}|{record.processName}] "
+            if record.args:  # logging only unescapes `%%` when it has args to fill in
+                tag = tag.replace("%", "%%")
             record.msg = tag + str(record.msg)
         return record
 
@@ -106,7 +108,7 @@ def section(name, label=None):
     """The shared phase wrapper: heading, tagged User log, closing line (even on a crash).
 
     `label` is the heading text; it defaults to `phase <name>`. A crash is logged on the
-    Plumber log, with its traceback, before the closing line.
+    Plumber log before the closing line.
     """
     plumber_log.info("=== %s ===", label or f"phase {name}")
     ok = False
@@ -115,10 +117,14 @@ def section(name, label=None):
             yield
         ok = True
     except Exception as error:
-        plumber_log.exception("phase %s failed: %r", name, error)
+        plumber_log.error("phase %s failed: %r", name, error)  # the raise prints the traceback
         raise
     finally:
         plumber_log.info("=== end %s: %s ===", name, "ok" if ok else "failed")
+
+
+def write_step_checkpoint(step, data, run_params):
+    write_checkpoint(data, run_params["checkpoint_dir"], step.name)
 
 
 def run_phase(step, data, run_params):
@@ -130,14 +136,14 @@ def run_phase(step, data, run_params):
     with section(step.name):
         data = step.fn(data, **step.params)
         if step.checkpoint:
-            write_checkpoint(data, run_params["checkpoint_dir"], step.name)
+            write_step_checkpoint(step, data, run_params)
         return data
 
 
 def load(input: Bound):
-    """Call the user's input function. One of plumber's own (a `--from` read) gets no section."""
+    """Call the user's input function. A checkpoint read (`--from`) gets no section."""
     fn, params = input
-    if fn.__module__.startswith("plumber."):
+    if fn is read_checkpoint:
         return fn(**params)
     with section("input", "input"):
         return fn(**params)

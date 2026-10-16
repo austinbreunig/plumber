@@ -163,3 +163,18 @@ def test_plumber_debug_lines_show_when_user_level_is_high(caplog):
     with user_level(run_params):
         LocalSequential().execute((lambda: [1], {}), [step], None, run_params)
     assert "deep detail" in plumber_lines([(r.name, r.getMessage()) for r in caplog.records])
+
+
+def deep(data):
+    plumber_log.debug("deep detail")
+    return data
+
+
+def test_localmp_workers_show_plumber_debug_lines_under_each_start_method(caplog, start_method):
+    caplog.set_level(logging.DEBUG)
+    step = Step("deep", deep, {}, True, False)
+    data = pd.DataFrame({"id": range(2)})
+    run_params = {"user_level": "ERROR"}
+    with user_level(run_params):
+        LocalMultiprocess({"chunk_size": 1}).execute((lambda: data, {}), [step], None, run_params)
+    assert "deep detail" in plumber_lines([(r.name, r.getMessage()) for r in caplog.records])

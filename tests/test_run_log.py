@@ -168,12 +168,14 @@ def test_crash_is_logged_on_the_plumber_log(project, caplog):
     assert errors and "boom" in errors[0].getMessage()
 
 
-def test_phase_named_output_gets_a_phase_heading(project, caplog):
+@pytest.mark.parametrize("name", ["input", "output"])
+def test_phase_named_input_or_output_is_rejected(project, name):
     config = yaml.safe_load(Path("plumber.yaml").read_text())
-    config["phases"][0]["name"] = "output"
+    config["phases"][0]["name"] = name
     Path("plumber.yaml").write_text(yaml.safe_dump(config))
 
-    assert "=== phase output ===" in run_log(caplog)
+    with pytest.raises(SystemExit):
+        main(["run"])
 
 
 def test_from_checkpoint_has_no_input_heading(project, caplog):
@@ -196,9 +198,36 @@ def test_bad_logging_call_does_not_crash_the_phase():
     assert record.msg.startswith("[p|")  # no raise here; logging reports the bad call later
 
 
-def test_replay_gives_up_when_a_worker_never_says_it_is_done():
+def test_tag_does_not_double_percent_when_the_call_has_no_args():
+    from plumber.protocols import tag_records
+
+    with tag_records("50%_sample"):
+        make = logging.getLogger("user").makeRecord
+        record = make("user", logging.INFO, "f", 1, "done", (), None)
+        with_args = make("user", logging.INFO, "f", 1, "n=%s", (3,), None)
+    assert record.getMessage() == "[50%_sample|MainProcess] done"
+    assert with_args.getMessage() == "[50%_sample|MainProcess] n=3"
+
+
+def test_pump_counts_only_its_own_phases_end_mark():
     import multiprocessing
 
-    from plumber.localmp import replay
+    from plumber.localmp import pump
 
-    replay(multiprocessing.Queue(), 1, timeout=0.2)  # would hang forever before
+    queue = multiprocessing.Queue()
+    queue.put("earlier")
+    queue.put("mine")
+    assert pump(queue, "mine", 1) == 0  # a late mark from another phase
+    assert pump(queue, "mine", 1) == 1
+    assert pump(queue, "mine", 0.2) is None  # nothing left
+
+
+def test_collect_gives_up_when_a_worker_never_says_it_is_done():
+    import multiprocessing
+    from concurrent.futures import Future
+
+    from plumber.localmp import collect
+
+    done = Future()
+    done.set_result(1)  # finished, but its end mark never reaches the queue
+    assert collect([done], multiprocessing.Queue(), "p", timeout=0.2) == [1]
