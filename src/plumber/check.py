@@ -15,7 +15,7 @@ import warnings
 
 from plumber.entries import FAIL, PASS, SKIP, WARN, Finding, name_of, params_of, phase_label
 from plumber.probe import probe
-from plumber.protocols import DEFAULT_USER_LEVEL, parse_user_level
+from plumber.protocols import DEFAULT_USER_LEVEL, parse_user_level, user_level
 from plumber.resolver import resolve
 
 # Which `execution.partition:` keys each strategy understands. A key a strategy does not list
@@ -234,7 +234,9 @@ def run_probe(config, overrides, findings):
         return [], "not run (no check.sample)"
     if any(f.status == FAIL for f in findings):
         return [], "not run (fix the FAIL rows first)"
-    return probe(sample, config["phases"], overrides), f"ran on {sample}"
+    with user_level(config):
+        findings = probe(sample, config["phases"], overrides)
+    return findings, f"ran on {sample}"
 
 
 def check(config, overrides=None, runtime=True):

@@ -99,8 +99,10 @@ def tag_records(name):
     def tagged(*args, **kwargs):
         record = make_record(*args, **kwargs)
         if record.name != "plumber" and not record.name.startswith("plumber."):
-            record.msg = f"[{name}|{record.processName}] {record.getMessage()}"
-            record.args = ()
+            # Keep msg and args apart: a bad logging call then fails where logging
+            # always handles it (the handler), not inside the user's phase.
+            tag = f"[{name}|{record.processName}] ".replace("%", "%%")
+            record.msg = tag + str(record.msg)
         return record
 
     logging.setLogRecordFactory(tagged)

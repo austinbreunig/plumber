@@ -10,6 +10,7 @@ import logging
 import logging.handlers
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor, wait
+from queue import Empty
 
 import numpy as np
 import pandas as pd
@@ -18,6 +19,7 @@ from plumber.checkpoint import write_checkpoint
 from plumber.protocols import (
     Result,
     load,
+    plumber_log,
     run_phase,
     save,
     section,
@@ -78,10 +80,18 @@ def run_piece(step, piece):
         _worker_queue.put(None)
 
 
-def replay(queue, count):
-    """Emit the workers' records here, until `count` pieces have said they are done."""
+def replay(queue, count, timeout=5):
+    """Emit the workers' records here, until `count` pieces have said they are done.
+
+    A piece that died (killed worker, task that would not pickle) never says so, so give
+    up after `timeout` seconds of silence instead of waiting forever.
+    """
     while count:
-        record = queue.get()
+        try:
+            record = queue.get(timeout=timeout)
+        except Empty:
+            plumber_log.warning("a worker sent no end mark; some of its log lines may be missing")
+            return
         if record is None:
             count -= 1
         else:

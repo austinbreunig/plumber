@@ -184,3 +184,21 @@ def test_from_checkpoint_has_no_input_heading(project, caplog):
 
     assert "=== input ===" not in lines
     assert "=== output ===" in lines
+
+
+def test_bad_logging_call_does_not_crash_the_phase():
+    from plumber.protocols import tag_records
+
+    with tag_records("p"):
+        record = logging.getLogger("user").makeRecord(
+            "user", logging.INFO, "f", 1, "x %s %s", (1,), None
+        )
+    assert record.msg.startswith("[p|")  # no raise here; logging reports the bad call later
+
+
+def test_replay_gives_up_when_a_worker_never_says_it_is_done():
+    import multiprocessing
+
+    from plumber.localmp import replay
+
+    replay(multiprocessing.Queue(), 1, timeout=0.2)  # would hang forever before
