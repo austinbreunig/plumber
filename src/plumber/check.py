@@ -15,6 +15,7 @@ import warnings
 
 from plumber.entries import FAIL, PASS, SKIP, WARN, Finding, name_of, params_of, phase_label
 from plumber.probe import probe
+from plumber.protocols import DEFAULT_USER_LEVEL, parse_user_level, user_level
 from plumber.resolver import resolve
 
 # Which `execution.partition:` keys each strategy understands. A key a strategy does not list
@@ -98,7 +99,8 @@ def check_partition_suits_strategy(config, overrides):
 
 
 def check_unique_names(config, overrides):
-    """Two phases may not share a name (checkpoints and `--from`/`--to` go by name)."""
+    """Two phases may not share a name (checkpoints and `--from`/`--to` go by name), and
+    none may be called `input` or `output`."""
     findings = []
     first_seen = {}
     entries = config.get("phases") or []
@@ -106,6 +108,15 @@ def check_unique_names(config, overrides):
         name = entry.get("name", entry.get("path"))
         if name is None:
             continue  # check_phase_fields already reported the missing path
+        if name in ("input", "output"):
+            findings.append(
+                Finding(
+                    phase_label(number),
+                    FAIL,
+                    f"Phase name {name!r} is reserved (the Run log uses it for the "
+                    f"{name} function). Give it a different `name:`.",
+                )
+            )
         if name in first_seen:
             findings.append(
                 Finding(
@@ -120,6 +131,14 @@ def check_unique_names(config, overrides):
     return findings
 
 
+def check_user_level(config, overrides):
+    try:
+        parse_user_level(config.get("user_level", DEFAULT_USER_LEVEL))
+    except ValueError as error:
+        return [Finding("user_level", FAIL, str(error))]
+    return []
+
+
 def check_input_present(config, overrides):
     if not config.get("input"):
         return [Finding("input", FAIL, "missing `input:` block")]
@@ -131,6 +150,7 @@ STRUCTURAL_CHECKS = [
     check_phase_fields,
     check_unique_names,
     check_checkpoints_block,
+    check_user_level,
     check_partition_suits_strategy,
 ]
 
@@ -224,7 +244,9 @@ def run_probe(config, overrides, findings):
         return [], "not run (no check.sample)"
     if any(f.status == FAIL for f in findings):
         return [], "not run (fix the FAIL rows first)"
-    return probe(sample, config["phases"], overrides), f"ran on {sample}"
+    with user_level(config):
+        probe_findings = probe(sample, config["phases"], overrides)
+    return probe_findings, f"ran on {sample}"
 
 
 def check(config, overrides=None, runtime=True):

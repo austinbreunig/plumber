@@ -27,3 +27,19 @@ _Avoid_: Adapter (alone), wrapper
 **Check sample**:
 A small, optional file shaped like the pipeline's input data. `check` runs the phases on it to catch bugs that only show up when phase code actually runs.
 _Avoid_: Fixture, test data, sample data
+
+**Run log**:
+The one stream of log lines a run produces. Plumber's lines mark where each phase begins; the user's lines fall under the heading of the phase that was running.
+_Avoid_: Output (clashes with **Output function**), trace
+
+**Plumber log**:
+Lines plumber itself writes about the run: the **Phase heading**, checkpoints saved, a run starting or ending.
+_Avoid_: System log, framework log
+
+**User log**:
+Lines written by the user's own functions with ordinary Python logging. Plumber adds nothing to them.
+_Avoid_: App log
+
+**Phase heading**:
+The **Plumber log** line that opens each phase's section in the **Run log**, so the log reads phase by phase. The input and output functions get one too (`input`, `output`), so their lines are never orphaned.
+_Avoid_: Banner, title log, separator
