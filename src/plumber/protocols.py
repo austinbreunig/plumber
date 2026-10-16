@@ -3,10 +3,9 @@
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
-from functools import wraps
 from typing import Any, Callable, Generic, Optional, Protocol, TypeVar
 
-from plumber.checkpoint import read_checkpoint, write_checkpoint
+from plumber.checkpoint import write_checkpoint
 
 Payload = TypeVar("Payload")
 
@@ -67,24 +66,14 @@ def user_level(run_params):
     library loggers) follows it. The `plumber` logger has its own level, so it always shows.
     """
     root = logging.getLogger()
-    before = root.level, plumber_log.level
+    root_before, plumber_before = root.level, plumber_log.level
     root.setLevel(parse_user_level(run_params.get("user_level", DEFAULT_USER_LEVEL)))
     plumber_log.setLevel(logging.DEBUG)
     try:
         yield
     finally:
-        root.setLevel(before[0])
-        plumber_log.setLevel(before[1])
-
-
-def phase_heading(label):
-    """Open a section of the Run log: `=== <label> ===`."""
-    plumber_log.info("=== %s ===", label)
-
-
-def phase_closing(name, ok):
-    """Close a section: `=== end <name>: ok ===`, or `failed` if the phase raised."""
-    plumber_log.info("=== end %s: %s ===", name, "ok" if ok else "failed")
+        root.setLevel(root_before)
+        plumber_log.setLevel(plumber_before)
 
 
 @contextmanager
@@ -119,7 +108,7 @@ def section(name, label=None):
     `label` is the heading text; it defaults to `phase <name>`. A crash is logged on the
     Plumber log, with its traceback, before the closing line.
     """
-    phase_heading(label or f"phase {name}")
+    plumber_log.info("=== %s ===", label or f"phase {name}")
     ok = False
     try:
         with tag_records(name):
@@ -129,18 +118,7 @@ def section(name, label=None):
         plumber_log.exception("phase %s failed: %r", name, error)
         raise
     finally:
-        phase_closing(name, ok)
-
-
-def with_user_level(execute):
-    """Decorator for a strategy's `execute`: run it inside `user_level(run_params)`."""
-
-    @wraps(execute)
-    def wrapper(self, input, steps, output, run_params):
-        with user_level(run_params):
-            return execute(self, input, steps, output, run_params)
-
-    return wrapper
+        plumber_log.info("=== end %s: %s ===", name, "ok" if ok else "failed")
 
 
 def run_phase(step, data, run_params):
@@ -157,9 +135,9 @@ def run_phase(step, data, run_params):
 
 
 def load(input: Bound):
-    """Call the user's input function. A checkpoint read (`--from`) gets no section."""
+    """Call the user's input function. One of plumber's own (a `--from` read) gets no section."""
     fn, params = input
-    if fn is read_checkpoint:
+    if fn.__module__.startswith("plumber."):
         return fn(**params)
     with section("input", "input"):
         return fn(**params)
@@ -176,20 +154,9 @@ def save(output: Optional[Bound], data) -> None:
 class ExecutionStrategy(Protocol[Payload]):
     """Runs the input, the steps, then the output.
 
-    The signature is the whole interface. These logging rules are part of the contract
-    (see ADR 0001):
-
-    - Wrap every user call with `section` (or `run_phase`, `load`, `save`) so the Run log
-      has a heading, tagged User log lines, and a closing line per phase.
-    - Line format, fixed in v1 (`<name>` is the step name, `<process>` the process name):
-        `=== run start: <n> phases ===` / `=== run end ===`   (written by `run`)
-        `=== input ===` / `=== phase <name> ===` / `=== output ===`
-        `[<name>|<process>] <user message>`
-        `=== end <name>: ok ===` or `=== end <name>: failed ===`
-    - Decorate `execute` with `@with_user_level` so `user_level` filters
-      the User log (and never the Plumber log).
-    - Ordering: every line of phase N is delivered before the heading of phase N+1.
-      How lines travel back to the main process is the strategy's own job.
+    The signature is the whole interface. The logging rules are part of the contract: see
+    ADR 0001 (wrap every user call with `section`, `run_phase`, `load` or `save`; deliver
+    every line of phase N before the heading of phase N+1). `run` applies `user_level`.
     """
 
     def execute(

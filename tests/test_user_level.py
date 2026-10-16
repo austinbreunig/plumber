@@ -10,7 +10,7 @@ import yaml
 from plumber.cli import main
 from plumber.local import LocalSequential
 from plumber.localmp import LocalMultiprocess
-from plumber.protocols import Step, plumber_log
+from plumber.protocols import Step, plumber_log, user_level
 
 FIXTURE = Path(__file__).parent / "fixture"
 
@@ -28,7 +28,8 @@ def run_chatty(caplog, **run_params):
     """The Run log lines from `execute`, as (logger name, text)."""
     caplog.set_level(logging.DEBUG)
     step = Step("chatty", chatty, {}, partitionable=False, checkpoint=False)
-    LocalSequential().execute((lambda: [1], {}), [step], None, run_params)
+    with user_level(run_params):
+        LocalSequential().execute((lambda: [1], {}), [step], None, run_params)
     return [(r.name, r.getMessage()) for r in caplog.records]
 
 
@@ -131,9 +132,9 @@ def test_localmp_workers_follow_user_level_under_each_start_method(caplog, start
     caplog.set_level(logging.DEBUG)
     step = Step("chatty", chatty, {}, partitionable=True, checkpoint=False)
     data = pd.DataFrame({"id": range(4)})
-    LocalMultiprocess({"chunk_size": 1}).execute(
-        (lambda: data, {}), [step], None, {"user_level": "ERROR"}
-    )
+    run_params = {"user_level": "ERROR"}
+    with user_level(run_params):
+        LocalMultiprocess({"chunk_size": 1}).execute((lambda: data, {}), [step], None, run_params)
     lines = [(r.name, r.getMessage()) for r in caplog.records]
     assert set(user_lines(lines)) == {"my.phase ERROR", "pyproj.crs ERROR"}
     assert "=== phase chatty ===" in plumber_lines(lines)
@@ -158,5 +159,7 @@ def test_unquoted_off_in_config_passes_check(project, capsys):
 def test_plumber_debug_lines_show_when_user_level_is_high(caplog):
     caplog.set_level(logging.DEBUG)
     step = Step("noisy", lambda data: plumber_log.debug("deep detail") or data, {}, False, False)
-    LocalSequential().execute((lambda: [1], {}), [step], None, {"user_level": "ERROR"})
+    run_params = {"user_level": "ERROR"}
+    with user_level(run_params):
+        LocalSequential().execute((lambda: [1], {}), [step], None, run_params)
     assert "deep detail" in plumber_lines([(r.name, r.getMessage()) for r in caplog.records])
