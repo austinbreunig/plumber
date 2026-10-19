@@ -10,23 +10,27 @@ type hints and the first docstring line). Skips venvs, hidden folders, tests, `.
 
 import ast
 import json
-import os
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from common import walk_repo  # noqa: E402
 
 SKIP_DIRS = {"tests", "__pycache__", "node_modules"}
 
 
+def skip_dir(name):
+    return name.startswith(".") or name in SKIP_DIRS
+
+
 def source_files(repo):
     """Every .py file under `repo`, skipping venvs, hidden folders, tests and `.plumber/`."""
-    for folder, subdirs, files in os.walk(repo):
-        if "pyvenv.cfg" in files:
-            subdirs[:] = []
-            continue
-        subdirs[:] = sorted(d for d in subdirs if not d.startswith(".") and d not in SKIP_DIRS)
-        for name in sorted(files):
-            if name.endswith(".py"):
-                yield Path(folder) / name
+    for folder, files, is_venv in walk_repo(repo, skip_dir):
+        if not is_venv:
+            for name in sorted(files):
+                if name.endswith(".py"):
+                    yield folder / name
 
 
 def module_name(repo, file):

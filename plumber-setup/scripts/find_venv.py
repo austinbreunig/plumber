@@ -12,6 +12,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+
+from common import walk_repo  # noqa: E402
+
 MIN_PLUMBER_VERSION = "0.1.2"
 
 SKIP_DIRS = {".git", "node_modules", "__pycache__"}
@@ -33,14 +37,7 @@ def version_at_least(version, minimum):
 
 def find_venvs(repo):
     """Every folder under `repo` that holds a `pyvenv.cfg`."""
-    found = []
-    for folder, subdirs, files in os.walk(repo):
-        if "pyvenv.cfg" in files:
-            found.append(Path(folder))
-            subdirs[:] = []  # do not look inside a venv
-        else:
-            subdirs[:] = [d for d in subdirs if d not in SKIP_DIRS]
-    return found
+    return [folder for folder, _, is_venv in walk_repo(repo, SKIP_DIRS.__contains__) if is_venv]
 
 
 def venv_python(venv):

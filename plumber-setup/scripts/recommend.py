@@ -18,6 +18,10 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+
+from common import CONFIG, DRAFT  # noqa: E402
+
 OFFER, TELL, NOTE = "offer", "tell", "note"
 
 # (pattern, kind, action, text). `{0}`, `{1}` are the pattern's groups. WARN texts are questions.
@@ -65,7 +69,7 @@ def classify(label, status, message):
     for pattern, kind, action, text in RULES:
         match = re.match(pattern, message)
         if match:
-            text = text.replace("{m}", message).format(*match.groups())
+            text = text.format(*match.groups(), m=message)  # values are not re-parsed
             item = {"label": label, "status": status, "kind": kind, "action": action,
                     "text": text, "message": message}
             if action in ("remove_param", "add_param", "unused_param"):
@@ -126,21 +130,28 @@ def link_crashes(items):
     return linked
 
 
-def shim_wraps(config_text, path):
-    """`module:fn` from a `# shim wraps module:fn` comment on the config line with `path`."""
+def shim_wraps(config_text, path, repo="."):
+    """`module:fn` from a `# shim wraps module:fn` comment on the config line with `path`,
+    else from line 2 of `.plumber/<name>.py` if that file exists."""
     for line in config_text.splitlines():
         if path in line:
             match = re.search(r"#\s*shim wraps\s+(\S+)", line)
             if match:
                 return match.group(1)
+    shim = Path(repo) / ".plumber" / f"{path.partition(':')[0]}.py"
+    if shim.exists():
+        lines = shim.read_text(encoding="utf-8").splitlines()
+        match = re.match(r"#\s*shim wraps\s+(\S+)", lines[1]) if len(lines) > 1 else None
+        if match:
+            return match.group(1)
     return None
 
 
-def offer_shims(items, config_text):
+def offer_shims(items, config_text, repo="."):
     """An unresolved path with a `# shim wraps` comment becomes an offer to build that shim."""
     offered = []
     for item in items:
-        wraps = item["action"] == "repick_path" and shim_wraps(config_text, item["path"])
+        wraps = item["action"] == "repick_path" and shim_wraps(config_text, item["path"], repo)
         if wraps:
             name = item["path"].partition(":")[0]
             text = (f"`{item['path']}` is a shim that is not built yet. "
@@ -173,7 +184,7 @@ def order(items):
     return sorted(items, key=lambda item: STATUS_ORDER.index(item["status"]))
 
 
-def recommend(report, config_text=""):
+def recommend(report, config_text="", repo="."):
     """The whole step: report rows -> ordered items."""
     items = [
         classify(row["label"], row["status"], message)
@@ -181,29 +192,23 @@ def recommend(report, config_text=""):
         if row["status"] != "PASS"
         for message in row["messages"]
     ]
-    items = offer_shims(link_crashes(merge_renames(items)), config_text)
+    items = offer_shims(link_crashes(merge_renames(items)), config_text, repo)
     return {"items": order(fold(items, report["rows"]))}
 
 
 def default_config(repo):
     """The draft if there is one (it is the work in progress), else plumber.yaml."""
-    draft = Path(repo) / "plumber.draft.yaml"
-    return draft.name if draft.exists() else "plumber.yaml"
+    return DRAFT if (Path(repo) / DRAFT).exists() else CONFIG
 
 
 def recommend_repo(repo, config_file=None, overrides=None):
     """Run `check` once on the config and recommend. Never retries."""
-    from plumber import check, load_config  # needs plumber, so import only when used
+    from detect_case import checked_report  # needs plumber, so import only when used
 
     repo = Path(repo)
     path = repo / (config_file or default_config(repo))
     text = path.read_text(encoding="utf-8")
-    try:
-        report = check(load_config(path), overrides or {})
-    except Exception as error:  # a config that will not load is one FAIL, as in detect_case
-        report = {"rows": [{"label": "config", "status": "FAIL",
-                            "messages": [f"config does not load: {error}"]}]}
-    return recommend(report, text)
+    return recommend(checked_report(path, overrides), text, repo)
 
 
 def main():
