@@ -92,3 +92,20 @@ lines already there. If it returns `status: skipped` (not a git repo), say nothi
      End state: a valid `plumber.yaml` and no draft file.
    - No: leave `plumber.yaml` alone and keep the draft. Tell the user they can run `/plumber-setup`
      again to continue.
+
+## Step 1 tail: strategy, partition, checkpoints, output (ticket #57)
+
+Continues the case A conversation (items 6 to 9 above) and ends before Approve.
+
+- Duplicate function: give each use a distinct `name:` (the default name is the path, so two uses
+  of one path clash). Show both phase blocks and ask for the new name.
+- Strategy: if `localmp`, write `execution: {strategy: localmp, partition: {<one key>}}`. Exactly one
+  of `by` (list of columns, one piece per value), `chunk_size` (rows per piece), `worker_count`
+  (N slices).
+- Tail order: `checkpoint: true` on slow phases, `checkpoints: {dir: ...}`, `user_level`, then the
+  output function (same pick list as the input).
+- Before Approve, run `python <this folder>/scripts/lint_draft.py <repo>/plumber.draft.yaml`.
+  - Any `problems`: fix them with the user, rewrite the draft, lint again. Do not go to Approve
+    until `problems` is empty.
+  - Each `warnings` line: say it in plain words once (for example "localmp will not help: no phase
+    is partitionable", "no output function, the result is discarded"). Warnings do not block.
