@@ -226,3 +226,22 @@ WARNs on a working pipeline are questions, not errors. Keep them calm.
 
 After the approved fixes, run `check` once (`recommend.py` again, or `plumber check`), show the
 result, and stop. No retry loop. A FAIL left over is told, not chased.
+
+## Edit and remove shims
+
+Only on request. Helper: `python <this folder>/scripts/shim_edit.py`. Only shims with the
+`# shim wraps` line are skill-made. Never touch any other file in `.plumber/`.
+
+1. Look first: `shim_edit.py status <repo> <name>`.
+   - `skill_made: false`: say it is hand-written and stop. Never edit or delete it.
+   - `hand_edited: true`: the `# base:` hash no longer matches, so someone edited it. Show `text`
+     and ask: overwrite, keep, or stop. Keep and stop change nothing.
+2. Edit: re-ask only the part of the shim spec that changes. Pipe the new spec to
+   `shim_edit.py diff <repo>` and show `diff` (old vs new). One approval, then pipe the spec to
+   `shim_edit.py edit <repo> [overwrite]`. Pass `overwrite` only if the user chose it. `status: kept`
+   means nothing was written. Run `check` once and show it.
+3. Remove: ask a yes for each file. Then run `shim_edit.py remove <repo> <name> [overwrite]`.
+   - `in_use`: say which files (`used_by`) still have a phase on `<name>:run`. Offer to repoint the
+     phase first (edit the `phases` block with `edit_block.py`), then remove again.
+   - `hand_edited`: ask overwrite, keep or stop as above. Delete only on overwrite.
+   - `not_skill_made`: say the file is hand-written and was left alone.
