@@ -92,3 +92,34 @@ lines already there. If it returns `status: skipped` (not a git repo), say nothi
      End state: a valid `plumber.yaml` and no draft file.
    - No: leave `plumber.yaml` alone and keep the draft. Tell the user they can run `/plumber-setup`
      again to continue.
+
+## Step 2: adapter shims
+
+Skip this step if no function needs a shim. Shims are built from the fixed template by
+`scripts/render_shim.py`. Never write a shim by hand.
+
+### Shim spec (settled in step 1)
+
+For each function that does not fit `fn(data, **params) -> data`, agree on one spec:
+- `name`: unique, proposed `<function>_shim`.
+- `wraps`: `module:fn`.
+- `data_arg`: the wrapped function's param that receives the data.
+- `loaders`: for a param YAML cannot hold (a network, a model). Pick a loader function that builds
+  it from one value. The loader must take exactly one required param (check with the scan: one
+  param with `required: true`). The shim gets a plain `<param>_source` param. No loader exists:
+  offer "skip this shim" or "pick another function". Never invent a shape.
+- `passthrough`: the other required params. The phase's `params:` in the YAML holds the
+  `<param>_source` values and the passthrough values.
+
+Name clash: `python <this folder>/scripts/render_shim.py taken <repo> <name>`. If `taken: true`, say
+"pick another name". Never overwrite.
+
+### Build
+
+1. Render each pending shim: `python <this folder>/scripts/render_shim.py render < spec.json`.
+   Show every pending shim in full with its expected `params:`. Ask one yes for the whole set.
+2. Yes: `python <this folder>/scripts/render_shim.py create <repo> < spec.json` once per shim. It
+   writes `.plumber/<name>.py` and refuses to overwrite. The shim is referenced as `<name>:run`.
+   Line 1 is `# base: <hash>`, line 2 is `# shim wraps <module:fn>`.
+3. Run `check` once. Show the result. Do not retry.
+4. Resume: a config pointing at a missing shim resumes at this step.
