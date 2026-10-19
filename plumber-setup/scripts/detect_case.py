@@ -2,7 +2,9 @@
 
 Run with the target repo's venv Python and the repo as the working directory:
   <venv>/bin/python detect_case.py [repo]
-Prints JSON: {"case": "resume"|"A"|"B"|"C", "findings": [...], "draft_error": null|"..."}
+Prints JSON: {"case": "resume"|"A"|"B"|"C", "findings": [...], "draft_error": null|"...",
+"drift": bool}
+`drift` is true when the draft's `# base:` no longer matches plumber.yaml (resume only).
 
 Order, first match wins:
   1. a draft exists            -> resume
@@ -16,7 +18,11 @@ import os
 import sys
 from pathlib import Path
 
-from plumber import check, load_config
+sys.path.insert(0, str(Path(__file__).parent))
+
+from base_hash import hash_file, read_base  # noqa: E402
+
+from plumber import check, load_config  # noqa: E402
 
 CONFIG = "plumber.yaml"
 DRAFT = "plumber.draft.yaml"
@@ -46,15 +52,27 @@ def check_findings(path):
     ]
 
 
+def has_drifted(repo):
+    """True if plumber.yaml changed since the draft started (or the draft has no base line)."""
+    base = read_base((Path(repo) / DRAFT).read_text(encoding="utf-8"))
+    return base != hash_file(Path(repo) / CONFIG)
+
+
 def detect_case(repo="."):
     repo = Path(repo)
     draft, config = repo / DRAFT, repo / CONFIG
     if draft.exists():
-        return {"case": "resume", "findings": [], "draft_error": load_error(draft)}
+        return {
+            "case": "resume",
+            "findings": [],
+            "draft_error": load_error(draft),
+            "drift": has_drifted(repo),
+        }
     if not config.exists():
-        return {"case": "A", "findings": [], "draft_error": None}
+        return {"case": "A", "findings": [], "draft_error": None, "drift": False}
     findings = check_findings(config)
-    return {"case": "C" if findings else "B", "findings": findings, "draft_error": None}
+    case = "C" if findings else "B"
+    return {"case": case, "findings": findings, "draft_error": None, "drift": False}
 
 
 def main():
