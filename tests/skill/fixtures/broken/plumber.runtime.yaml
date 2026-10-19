@@ -1,0 +1,24 @@
+# Runtime mistakes. Statically clean, so the probe runs on the sample.
+input:
+  path: myio:load_fixture
+  params: {}
+
+phases:
+  - path: phases.counter_state:run   # hidden state, so not chunk-safe
+    partitionable: true
+  - path: phases.reproject:run       # changes the CRS
+    partitionable: true
+  - path: phases.drop_value:run      # drops `value`
+    partitionable: true
+  - path: phases.scale_value:run     # needs `value`: crashes
+    partitionable: true
+    params: {factor: 2}
+  - path: phases.passthrough:run     # skipped after the crash
+    partitionable: true
+
+output:
+  path: myio:write_parquet
+  params: {path: out/result.parquet}
+
+check:
+  sample: .plumber/check_sample.parquet

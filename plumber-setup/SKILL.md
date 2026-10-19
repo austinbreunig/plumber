@@ -199,6 +199,34 @@ Before continuing, check the result of `detect_case.py`, in this order:
    so its `# base:` matches the current `plumber.yaml`.
 3. Neither. Say what the draft has so far, then ask: continue or discard?
 
+## Step 4: recommendations
+
+Case C starts here. Cases A and B end here after approve. Run once:
+`<venv>/bin/python <this folder>/scripts/recommend.py <repo> [config-file] [--params '<json>']`
+It runs `check` once on the draft (else `plumber.yaml`) and prints `{"items": [...]}` already in
+order: FAIL, WARN, SKIP (one folded line), PASS (one last line). Say each item's `text` in plain
+words. Do not re-sort, re-word the facts, or run `check` again to "see if it got better".
+
+Each item has `kind`:
+- `offer`: you may write the fix, only through the existing gates. Ask yes or no for each.
+  - `rename_param`, `remove_param`, `add_param`, `set_path`, `set_partitionable`, `fix_block`,
+    `fix_execution`, `fix_user_level`, `add_input`, `rename_phase`, `repick_path`, `fix_config`:
+    edit the block with `edit_block.py` (Change an existing config, above).
+  - `set_partitionable_false`: write `partitionable: false` for that phase only. Say that fixing the
+    function is the user's job.
+  - `build_shim`: the config has `# shim wraps <module:fn>` on that path. Go to step 2 with
+    `name` and `wraps`. Ask only for what the spec still needs (`data_arg`, loaders).
+  - `new_sample`: go to step 3.
+- `tell`: say it, never fix it. `crash`, `crs_changed`, `dropped_columns` (ask "intended?"),
+  `unused_param` (a `--params` key no phase lists), `other`. If a crash has `cause`, say the
+  earlier dropped column is the likely root cause. The user decides about their own code and data.
+- `note`: read the line as it is.
+
+WARNs on a working pipeline are questions, not errors. Keep them calm.
+
+After the approved fixes, run `check` once (`recommend.py` again, or `plumber check`), show the
+result, and stop. No retry loop. A FAIL left over is told, not chased.
+
 ## Edit and remove shims
 
 Only on request. Helper: `python <this folder>/scripts/shim_edit.py`. Only shims with the
