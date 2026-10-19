@@ -62,3 +62,42 @@ def test_check_warn_is_case_c(repo):
     result = detect_case.detect_case(repo)
     assert result["case"] == "C"
     assert any("WARN" in line for line in result["findings"])
+
+
+def _write_draft(repo, text="phases: []\n"):
+    load_helper("write_draft").write_draft(repo, text)
+
+
+def test_untouched_config_is_not_drift(repo):
+    _write_draft(repo)
+    result = detect_case.detect_case(repo)
+    assert result["case"] == "resume"
+    assert result["drift"] is False
+
+
+def test_hand_edited_config_is_drift(repo):
+    _write_draft(repo)
+    (repo / "plumber.yaml").write_text((repo / "plumber.yaml").read_text() + "\n# edited\n")
+    assert detect_case.detect_case(repo)["drift"] is True
+
+
+def test_case_a_draft_with_no_config_is_not_drift(repo):
+    (repo / "plumber.yaml").unlink()
+    _write_draft(repo)
+    assert detect_case.detect_case(repo)["drift"] is False
+
+
+def test_config_appearing_after_case_a_draft_is_drift(repo):
+    (repo / "plumber.yaml").rename(repo / "keep.yaml")
+    _write_draft(repo)
+    (repo / "keep.yaml").rename(repo / "plumber.yaml")
+    assert detect_case.detect_case(repo)["drift"] is True
+
+
+def test_draft_without_base_line_is_drift(repo):
+    (repo / "plumber.draft.yaml").write_text((repo / "plumber.yaml").read_text())
+    assert detect_case.detect_case(repo)["drift"] is True
+
+
+def test_non_resume_cases_have_drift_false(repo):
+    assert detect_case.detect_case(repo)["drift"] is False
