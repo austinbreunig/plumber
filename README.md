@@ -82,6 +82,24 @@ nix develop --command uv run --extra dev ruff check .
 - `uv sync` removes packages that are not in your lockfile, including plumber. Keep plumber in
   its own venv (for example `.venv-plumber`), or run `uv sync --inexact`.
 
+## AI setup skill (optional)
+
+`/plumber-setup` is an optional skill that helps you write `plumber.yaml`. It walks you
+through four steps in one chat: config, adapter shim, check sample, and fixes for `check`
+problems. You can skip any step. It saves a draft file, so a stopped session can resume. It
+writes only after you approve, and it never overwrites a file silently. It runs only when you
+call it: `/plumber-setup <path>` (current folder by default).
+
+Install it: copy or symlink the `plumber-setup/` folder from this repo into `.claude/skills/`
+(in your project or in `~`), or into the skills folder of your own agent harness. To update,
+pull and copy again. A symlink updates itself.
+
+- It uses the **same venv** as your project. It looks for `pyvenv.cfg` files and asks you to
+  pick if several work.
+- It **never installs plumber**. If plumber is missing or too old, it prints the command to
+  run and stops.
+- It is **not in the PyPI package**. Get it from the GitHub repo.
+
 ## Quickstart
 
 First [install plumber](#install). Then, in any repo, write your input function, one or more phases, and an output function.
