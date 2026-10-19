@@ -109,3 +109,22 @@ Continues the case A conversation (items 6 to 9 above) and ends before Approve.
     until `problems` is empty.
   - Each `warnings` line: say it in plain words once (for example "localmp will not help: no phase
     is partitionable", "no output function, the result is discarded"). Warnings do not block.
+
+## Change an existing config (case B and C)
+
+Case B starts here. Case C is the same path, fed by `findings` from `detect_case.py` (and later by
+step 4 recommendations). Work on a copy: the draft. `plumber.yaml` stays untouched until Approve.
+
+1. Case B: ask one question, "What do you want to change?" Case C: say which `findings` you will
+   fix, in plain words, and skip the question.
+2. Map the answer to top-level blocks: `input`, `phases`, `output`, `strategy`, `check`,
+   `checkpoints`, `user_level`. Re-run only the matching parts of the Step 1 interview for those
+   blocks. If the user says "walk me through all of it", run the full Step 1 order on the copy.
+3. Write each changed block as YAML (the whole block, starting with `<key>:`) with
+   `<venv>/bin/python <this folder>/scripts/edit_block.py <repo> <key> < block.yaml`. It starts the
+   draft from `plumber.yaml` if there is none, and replaces only that block's lines. Comments, blank
+   lines and key order everywhere else stay byte-for-byte. Never rewrite the whole file here.
+4. The helper prints `error`. If it is not null, show it in plain words, fix the block, and write
+   it again. Show the block you just changed after every edit.
+5. Approve as in case A, but show a diff of `plumber.yaml` against the draft (without the `# base:`
+   line) next to the `check` output. The diff must show only real changes.
