@@ -124,6 +124,28 @@ Name clash: `python <this folder>/scripts/render_shim.py taken <repo> <name>`. I
 3. Run `check` once. Show the result. Do not retry.
 4. Resume: a config pointing at a missing shim resumes at this step.
 
+## Step 3: check sample
+
+Helper: `<venv>/bin/python <this folder>/scripts/sample.py`. It needs the repo's venv (geopandas).
+
+Have one (asked in step 1): run `sample.py schema <file>`. It reads the schema only, never rows. Never
+open the file any other way. Show columns, types, geometry, CRS and row count. Cross-check against the
+config: tell the user about config columns (partition fields, `_col`/`_column`/`_field` params) that the
+sample lacks. Do not change the file.
+
+Make one:
+1. Pre-fill columns: `sample.py prefill <repo>` reads the draft. Show them. Ask for more as `name: type`
+   (`int`, `float`, `str`, `bool`, `datetime`). On resume the file is missing and nothing was saved, so
+   ask the columns again.
+2. Ask geometry: points, lines or polygons (default points). Ask CRS (default the config's CRS, else
+   EPSG:4326). Rows: 20 unless the user says otherwise. Seed: 0.
+3. Build the JSON spec `{"path", "columns", "geometry", "crs", "rows", "seed", "partition"}`. `partition`
+   is the `by` columns, so they get 3 distinct values. Pipe it to `sample.py preview`. Show path, row
+   count, columns, types and the 5 preview rows.
+4. Ask once: write it? On yes pipe the same spec to `sample.py write`. If it returns `status: exists`,
+   never overwrite. Ask for a new name, update `check.sample` in the draft, and write again.
+5. Run `check` once. Show the result. Do not retry.
+
 ## Step 1 tail: strategy, partition, checkpoints, output (ticket #57)
 
 Continues the case A conversation (items 6 to 9 above) and ends before Approve.
