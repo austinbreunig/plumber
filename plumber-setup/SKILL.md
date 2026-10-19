@@ -128,3 +128,20 @@ step 4 recommendations). Work on a copy: the draft. `plumber.yaml` stays untouch
    it again. Show the block you just changed after every edit.
 5. Approve as in case A, but show a diff of `plumber.yaml` against the draft (without the `# base:`
    line) next to the `check` output. The diff must show only real changes.
+
+## Resume and drift (ticket 58)
+
+Case `resume` means a session was killed or stopped. The draft is the memory. Read the draft and
+continue from the first thing it does not answer yet. Never re-ask what the draft already holds.
+If the user deleted the draft by hand, `detect_case` just finds A, B or C again. Say nothing special.
+
+Before continuing, check the result of `detect_case.py`, in this order:
+
+1. `draft_error` is set. Say: "your draft doesn't load: <error>" (in plain words). Ask: fix it or
+   discard it? Fix: edit the draft with the user, then rewrite it with `write_draft.py`. Discard:
+   delete `plumber.draft.yaml` and re-run `detect_case.py`.
+2. `drift` is true. Say: "plumber.yaml changed since this draft started." Ask: discard the draft,
+   overwrite (keep the draft and replace the new `plumber.yaml` when approved), or stop. Never
+   merge the two by hand or automatically. On overwrite, rewrite the draft with `write_draft.py`
+   so its `# base:` matches the current `plumber.yaml`.
+3. Neither. Say what the draft has so far, then ask: continue or discard?
