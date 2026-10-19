@@ -24,12 +24,25 @@ def forget_repo_modules():
             del sys.modules[name]
 
 
-@pytest.fixture
-def repo(tmp_path, monkeypatch):
-    """A copy of the fixture repo; cwd is the repo, as the skill runs helpers."""
-    shutil.copytree(FIXTURE_REPO, tmp_path, dirs_exist_ok=True)
+def copy_fixture(source, tmp_path, monkeypatch):
+    """Copy a fixture repo into tmp_path and make it the cwd, as the skill runs helpers."""
+    shutil.copytree(source, tmp_path, dirs_exist_ok=True)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "path", list(sys.path))
     forget_repo_modules()
+
+
+@pytest.fixture
+def repo(tmp_path, monkeypatch):
+    """A copy of the fixture repo."""
+    copy_fixture(FIXTURE_REPO, tmp_path, monkeypatch)
+    yield tmp_path
+    forget_repo_modules()
+
+
+@pytest.fixture
+def broken_repo(tmp_path, monkeypatch):
+    """A copy of the deliberately broken fixture repo (static and runtime configs)."""
+    copy_fixture(FIXTURE_REPO.parent / "broken", tmp_path, monkeypatch)
     yield tmp_path
     forget_repo_modules()
