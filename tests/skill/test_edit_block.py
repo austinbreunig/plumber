@@ -23,7 +23,10 @@ output:
 
 
 def test_replaces_only_the_touched_block():
-    new = "phases:\n  - path: phases.scale_value:run\n    partitionable: false\n    params: {factor: 3}\n"
+    new = (
+        "phases:\n  - path: phases.scale_value:run\n    partitionable: false\n"
+        "    params: {factor: 3}\n"
+    )
     out = edit_block.replace_block(COMMENTED, "phases", new)
     old_lines = COMMENTED.splitlines()
     out_lines = out.splitlines()
