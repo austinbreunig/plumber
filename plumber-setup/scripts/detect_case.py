@@ -21,11 +21,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from base_hash import hash_file, read_base  # noqa: E402
+from common import CONFIG, DRAFT  # noqa: E402
 
 from plumber import check, load_config  # noqa: E402
-
-CONFIG = "plumber.yaml"
-DRAFT = "plumber.draft.yaml"
 
 
 def load_error(path):
@@ -39,13 +37,24 @@ def load_error(path):
     return None
 
 
+def checked_report(path, overrides=None):
+    """Run `check` once on the config at `path`. A config that will not load, or that loads
+    but is malformed so `check` crashes, is one FAIL row. Shared with recommend.py."""
+    try:
+        error = load_error(path)
+        if not error:
+            return check(load_config(path), overrides or {})
+    except Exception as crash:  # e.g. `phases:` a string
+        error = str(crash)
+    return {"rows": [{"label": "config", "status": "FAIL",
+                      "messages": [f"config does not load: {error}"]}]}
+
+
 def check_findings(path):
     """FAIL and WARN lines from `check` for the config at `path`. Broken config is one FAIL."""
-    error = load_error(path)
-    if error:
-        return [f"config does not load: {error}"]
-    report = check(load_config(path))
+    report = checked_report(path)
     return [
+        row["messages"][0] if row["label"] == "config" else
         f"{row['label']} {row['status']}: {'; '.join(row['messages'])}"
         for row in report["rows"]
         if row["status"] in ("FAIL", "WARN")

@@ -9,8 +9,13 @@ Prints {"problems": [...], "warnings": [...]}.
 
 import json
 import sys
+from pathlib import Path
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from common import DRAFT  # noqa: E402
 
 PARTITION_KEYS = ("by", "chunk_size", "worker_count")
 
@@ -58,7 +63,7 @@ def lint_draft(path):
 
 
 def main():
-    print(json.dumps(lint_draft(sys.argv[1] if len(sys.argv) > 1 else "plumber.draft.yaml")))
+    print(json.dumps(lint_draft(sys.argv[1] if len(sys.argv) > 1 else DRAFT)))
 
 
 if __name__ == "__main__":

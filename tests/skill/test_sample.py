@@ -91,3 +91,15 @@ def test_preview_is_five_text_rows():
     assert len(spec["preview"]) == 5
     assert spec["rows"] == 20
     assert spec["preview"][0]["geometry"].startswith("POINT")
+
+
+def test_prefill_tolerates_null_blocks():
+    assert sample.prefill_columns({"execution": None, "phases": None}) == {}
+    assert sample.prefill_columns({"execution": {"partition": None}}) == {}
+
+
+def test_prefill_reads_plumber_yaml_when_there_is_no_draft(tmp_path):
+    (tmp_path / "plumber.yaml").write_text("execution:\n  partition: {by: [zone]}\n")
+    assert sample.prefill(tmp_path) == {"zone": "str"}
+    (tmp_path / "plumber.draft.yaml").write_text("execution:\n  partition: {by: [county]}\n")
+    assert sample.prefill(tmp_path) == {"county": "str"}

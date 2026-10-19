@@ -1,6 +1,6 @@
 """Build a check sample and read a sample's schema. Run with the target repo's venv Python.
 
-  <venv>/bin/python sample.py prefill [repo]   reads <repo>/plumber.draft.yaml
+  <venv>/bin/python sample.py prefill [repo]   reads the draft, else plumber.yaml
                                                -> {"columns": {name: type}}
   <venv>/bin/python sample.py schema <file>    -> {"columns", "geometry", "crs", "rows"}
                                                Reads the file's metadata only, never row values.
@@ -24,6 +24,10 @@ import yaml
 from pyproj import CRS
 from shapely.geometry import LineString, Point, Polygon
 
+sys.path.insert(0, str(Path(__file__).parent))
+
+from common import CONFIG, DRAFT  # noqa: E402
+
 TYPES = ("int", "float", "str", "bool", "datetime")
 PARTITION_VALUES = 3
 PREVIEW_ROWS = 5
@@ -34,14 +38,22 @@ KIND_OF = {"Point": "points", "LineString": "lines", "Polygon": "polygons"}
 def prefill_columns(config):
     """Columns the config already implies: partition fields and `*_col/_column/_field` params."""
     columns = {}
-    for name in (config.get("execution") or {}).get("partition", {}).get("by", []):
+    partition = (config.get("execution") or {}).get("partition") or {}
+    for name in partition.get("by") or []:
         columns[name] = "str"
-    entries = [config.get("input"), config.get("output"), *config.get("phases", [])]
+    entries = [config.get("input"), config.get("output"), *(config.get("phases") or [])]
     for entry in entries:
         for key, value in ((entry or {}).get("params") or {}).items():
             if key.endswith(PARAM_SUFFIXES) and isinstance(value, str):
                 columns.setdefault(value, "float")
     return columns
+
+
+def prefill(repo):
+    """Prefill columns from the draft, else plumber.yaml (the draft is gone after approve)."""
+    repo = Path(repo)
+    path = repo / DRAFT if (repo / DRAFT).exists() else repo / CONFIG
+    return prefill_columns(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
 
 
 def make_value(kind, row, rng, cycle):
@@ -151,8 +163,7 @@ def main():
     command = sys.argv[1]
     if command == "prefill":
         repo = Path(sys.argv[2] if len(sys.argv) > 2 else ".")
-        config = yaml.safe_load((repo / "plumber.draft.yaml").read_text(encoding="utf-8"))
-        result = {"columns": prefill_columns(config or {})}
+        result = {"columns": prefill(repo)}
     elif command == "schema":
         result = read_schema(sys.argv[2])
     else:

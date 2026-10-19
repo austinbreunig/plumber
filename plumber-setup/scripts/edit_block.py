@@ -16,7 +16,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from write_draft import CONFIG, DRAFT, write_draft  # noqa: E402
+from common import CONFIG, DRAFT  # noqa: E402
+from write_draft import write_draft  # noqa: E402
 
 
 def block_range(lines, key):

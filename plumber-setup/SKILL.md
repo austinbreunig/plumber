@@ -55,6 +55,7 @@ Conversation, in this order:
    why. The user can overrule. A function that does not fit needs a shim (built in step 2). Propose
    the name `<function>_shim`. The user may rename it. A name clash with an existing file means
    "pick another name", never overwrite.
+   Write the phase as `path: <name>:run  # shim wraps <module:fn>` (see Draft).
 4. Repeated function. One shim, reused. Give each use its own `params:` and a distinct phase `name:`.
 5. Params. Required ones only.
 6. `partitionable`, for every phase, never defaulted. Ask in plain words with an example, for
@@ -73,8 +74,21 @@ Conversation, in this order:
 ### Draft
 
 `plumber.draft.yaml` in the repo root is the only memory. It is a full config, rewritten after every
-answer: `echo "<full yaml>" | <venv>/bin/python <this folder>/scripts/write_draft.py <repo>`.
-Line 1 is `# base: none` in case A (the helper writes it).
+answer, with a quoted heredoc so shell quoting cannot change the YAML:
+
+```
+<venv>/bin/python <this folder>/scripts/write_draft.py <repo> <<'EOF'
+<full yaml>
+EOF
+```
+
+Line 1 is `# base: none` in case A (the helper writes it). The helper keeps the draft's `# base:` line
+on every rewrite. Never write that line yourself.
+
+Shim comment: when a phase uses a shim that is not built yet, write its path line as
+`path: <name>:run  # shim wraps <module:fn>`. Step 4 reads that comment to offer the build. A block
+rewrite replaces the whole block, so always put the comment back on every shim path line you write
+(with `write_draft.py` and with `edit_block.py`). Do not drop it.
 
 The first time you create the draft, ask once (default yes): "Hide plumber.yaml, the draft and
 `.plumber/` from git?" Run
@@ -134,7 +148,7 @@ config: tell the user about config columns (partition fields, `_col`/`_column`/`
 sample lacks. Do not change the file.
 
 Make one:
-1. Pre-fill columns: `sample.py prefill <repo>` reads the draft. Show them. Ask for more as `name: type`
+1. Pre-fill columns: `sample.py prefill <repo>` reads the draft, else `plumber.yaml`. Show them. Ask for more as `name: type`
    (`int`, `float`, `str`, `bool`, `datetime`). On resume the file is missing and nothing was saved, so
    ask the columns again.
 2. Ask geometry: points, lines or polygons (default points). Ask CRS (default the config's CRS, else
@@ -175,7 +189,8 @@ step 4 recommendations). Work on a copy: the draft. `plumber.yaml` stays untouch
    blocks. If the user says "walk me through all of it", run the full Step 1 order on the copy.
 3. Write each changed block as YAML (the whole block, starting with `<key>:`) with
    `<venv>/bin/python <this folder>/scripts/edit_block.py <repo> <key> < block.yaml`. It starts the
-   draft from `plumber.yaml` if there is none, and replaces only that block's lines. Comments, blank
+   draft from `plumber.yaml` if there is none, and replaces only that block's lines. The new block replaces the old lines whole, so re-include any
+   `# shim wraps <module:fn>` comment from the old block on its path line. Comments, blank
    lines and key order everywhere else stay byte-for-byte. Never rewrite the whole file here.
 4. The helper prints `error`. If it is not null, show it in plain words, fix the block, and write
    it again. Show the block you just changed after every edit.
@@ -195,7 +210,8 @@ Before continuing, check the result of `detect_case.py`, in this order:
    delete `plumber.draft.yaml` and re-run `detect_case.py`.
 2. `drift` is true. Say: "plumber.yaml changed since this draft started." Ask: discard the draft,
    overwrite (keep the draft and replace the new `plumber.yaml` when approved), or stop. Never
-   merge the two by hand or automatically. On overwrite, rewrite the draft with `write_draft.py`
+   merge the two by hand or automatically. Normal rewrites keep the draft's old `# base:` line, so
+   drift stays visible. On overwrite only, rewrite the draft with `write_draft.py <repo> --rebase`
    so its `# base:` matches the current `plumber.yaml`.
 3. Neither. Say what the draft has so far, then ask: continue or discard?
 

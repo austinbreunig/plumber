@@ -89,3 +89,10 @@ def test_main_prints_json(tmp_path):
         input=json.dumps(SPEC), capture_output=True, text=True, check=True,
     ).stdout
     assert json.loads(out)["path"].endswith("predict_shim.py")
+
+
+@pytest.mark.parametrize("name", ["models", "mod"])
+def test_shim_name_cannot_shadow_a_wrapped_module(name):
+    spec = {**SPEC, "name": name, "loaders": [{**SPEC["loaders"][0], "loader": "mod:load"}]}
+    with pytest.raises(ValueError):
+        render_shim.render_shim(spec)

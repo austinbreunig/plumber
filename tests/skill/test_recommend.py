@@ -207,3 +207,27 @@ def test_config_that_does_not_load_is_one_offer(repo):
     (repo / "plumber.yaml").write_text("input: [not a mapping")
     items = recommend.recommend_repo(repo)["items"]
     assert [(i["status"], i["action"]) for i in items] == [("FAIL", "fix_config")]
+
+
+def test_braces_in_a_check_message_do_not_break_classify():
+    item = recommend.classify("P1", "FAIL", "KeyError: {'a': 1}")
+    assert item["action"] == "crash"
+    assert "{'a': 1}" in item["text"]
+
+
+def test_shim_wraps_falls_back_to_the_shim_file(tmp_path):
+    (tmp_path / ".plumber").mkdir()
+    (tmp_path / ".plumber" / "tidy_shim.py").write_text(
+        "# base: x\n# shim wraps phases.tidy:tidy\n"
+    )
+    rows = [row("P1", "FAIL", "cannot resolve 'tidy_shim:run': No module named 'tidy_shim'")]
+    config = "phases:\n  - path: tidy_shim:run\n"
+    items = recommend.recommend({"rows": rows}, config, tmp_path)["items"]
+    assert items[0]["action"] == "build_shim"
+    assert items[0]["wraps"] == "phases.tidy:tidy"
+
+
+def test_malformed_config_that_loads_is_one_offer(repo):
+    (repo / "plumber.yaml").write_text("input:\n  path: myio:load_fixture\nphases: nope\n")
+    items = recommend.recommend_repo(repo)["items"]
+    assert [(i["status"], i["action"]) for i in items] == [("FAIL", "fix_config")]

@@ -53,6 +53,9 @@ def render_shim(spec):
     check_identifier(spec["name"])
     module, function = split_path(spec["wraps"])
     loaders = spec.get("loaders", [])
+    for path in [spec["wraps"], *(item["loader"] for item in loaders)]:
+        if path.partition(":")[0].split(".")[0] == spec["name"]:
+            raise ValueError(f"shim name {spec['name']!r} would shadow the module in {path!r}")
     passthrough = [check_identifier(p) for p in spec.get("passthrough", [])]
     args = [f"{check_identifier(spec['data_arg'])}=data"]
     sources = []

@@ -24,10 +24,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from base_hash import base_matches  # noqa: E402
+from common import CONFIG, DRAFT  # noqa: E402
 from render_shim import SHIM_DIR, check_identifier, render_shim  # noqa: E402
 
 WRAPS_PREFIX = "# shim wraps"
-CONFIG_FILES = ["plumber.draft.yaml", "plumber.yaml"]
+CONFIG_FILES = [DRAFT, CONFIG]
 
 
 def shim_path(repo, name):

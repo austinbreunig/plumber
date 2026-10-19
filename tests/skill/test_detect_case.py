@@ -101,3 +101,17 @@ def test_draft_without_base_line_is_drift(repo):
 
 def test_non_resume_cases_have_drift_false(repo):
     assert detect_case.detect_case(repo)["drift"] is False
+
+
+def test_config_that_loads_but_is_malformed_is_case_c(repo):
+    (repo / "plumber.yaml").write_text("input:\n  path: myio:load_fixture\nphases: nope\n")
+    result = detect_case.detect_case(repo)
+    assert result["case"] == "C"
+    assert result["findings"]
+
+
+def test_phases_of_bare_strings_is_case_c(repo):
+    (repo / "plumber.yaml").write_text(
+        "input:\n  path: myio:load_fixture\nphases:\n  - phases.scale_value:run\n"
+    )
+    assert detect_case.detect_case(repo)["case"] == "C"
