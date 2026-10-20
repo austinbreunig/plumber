@@ -1,0 +1,12 @@
+input:
+  path: myio:load_fixture
+  params: {}
+
+phases:
+  - path: phases.scale_value:run
+    partitionable: true
+    params: {factor: 2}
+
+output:
+  path: myio:write_parquet
+  params: {path: out/result.parquet}

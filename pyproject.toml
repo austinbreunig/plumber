@@ -45,6 +45,9 @@ Issues = "https://github.com/austinbreunig/plumber/issues"
 [tool.hatch.version]
 path = "src/plumber/__init__.py"
 
+[tool.hatch.build.targets.sdist]
+exclude = ["plumber-setup"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/plumber"]
 
