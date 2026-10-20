@@ -27,12 +27,39 @@ The argument is the target repo path. Default: the current directory.
 | `C`      | `plumber.yaml` has check FAIL/WARN, or does not load. Fix it. `findings` lists why. |
 | `B`      | `plumber.yaml` is clean. Change it.                              |
 
-3. Say which case you found and why, in one or two plain sentences. Wait for the user's yes.
+3. Give the overview. Say it in plain words, as a short list, before you name the case:
+
+   > Here is the route. Any stop can be skipped.
+   > 1. Describe the pipeline: what it does, step by step.
+   > 2. Wire up the functions: pick the function for each phase, plus where data comes in and goes out.
+   > 3. Build adapters, if a function does not fit. An adapter shim is a thin wrapper that makes
+   >    your function fit plumber. Example: `clean_parcels(df, tol)` gets a wrapper so plumber can
+   >    call it.
+   > 4. Pick a test sample: a small file shaped like your data (a check sample). Plumber's check
+   >    runs your phases on it.
+   > 5. Review the checks and save.
+   >
+   > After saving, I can also help you run it.
+
+   Resume: say the same list in one line. Clean config and one change: say which stops apply.
+
+   Define each term once, in one line with an example, the first time it comes up. Use these words
+   (they match `CONTEXT.md`):
+   - phase: one function in the pipeline. Example: "scale values" is a phase.
+   - partitionable: a phase that gives the same answer on a slice of the rows alone. Example: a
+     per-row scale is. A dedupe across all rows is not.
+   - strategy: how the run is done. `local` is one process. `localmp` is several processes at once.
+   - checkpoint: a phase's output saved to disk, only when you opt in. Example: save the slow
+     phase so a later run can start there.
+
+   Speak the stop names above to the user. Never say "Step N", "case A", or any case letter. Those
+   labels are for you only.
+4. Say which case you found and why, in one or two plain sentences. Wait for the user's yes.
    If they say it is a different case ("change it, not fix it"), use theirs.
 
-After launch, the steps run in order: 1 config, 2 shim, 3 sample, 4 recommendations. The user can
-skip any step. If a skipped step is needed later, say so in one line. Do not block. Between steps ask
-"next, skip, or stop here?". Steps 2 to 4 are added by later tickets. Only case A step 1 is below.
+After launch, the steps run in order: 1 config, 2 shim, 3 sample, 4 recommendations, then Run it. The
+user can skip any step. If a skipped step is needed later, say so in one line. Do not block. Between
+steps ask "next, skip, or stop here?".
 
 ## Step 1, case A: fresh config
 
@@ -119,7 +146,8 @@ lines already there. If it returns `status: skipped` (not a git repo), say nothi
 
 ### Approve
 
-1. Run `detect_case.py`'s `check_findings` or `plumber check` on the draft once. Show the full draft
+1. Run `recommend.py` on the draft once (see step 4). `plumber check` takes no file argument, so
+   do not run it on the draft. Show the full draft
    file (case A has no old file to diff) next to the `check` output. A FAIL does not block approval.
    Label rows that fail only because a shim is not built yet: "expected: shim built in step 2".
 2. Ask once: save this as `plumber.yaml`?
@@ -127,6 +155,23 @@ lines already there. If it returns `status: skipped` (not a git repo), say nothi
      End state: a valid `plumber.yaml` and no draft file.
    - No: leave `plumber.yaml` alone and keep the draft. Tell the user they can run `/plumber-setup`
      again to continue.
+
+## Step 1 tail: strategy, partition, checkpoints, output
+
+Continues the case A conversation (items 6 to 9 above) and ends before Approve.
+
+- Duplicate function: give each use a distinct `name:` (the default name is the path, so two uses
+  of one path clash). Show both phase blocks and ask for the new name.
+- Strategy: if `localmp`, write `execution: {strategy: localmp, partition: {<one key>}}`. Exactly one
+  of `by` (list of columns, one piece per value), `chunk_size` (rows per piece), `worker_count`
+  (N slices).
+- Tail order: `checkpoint: true` on slow phases, `checkpoints: {dir: ...}`, `user_level`, then the
+  output function (same pick list as the input).
+- Before Approve, run `python <this folder>/scripts/lint_draft.py <repo>/plumber.draft.yaml`.
+  - Any `problems`: fix them with the user, rewrite the draft, lint again. Do not go to Approve
+    until `problems` is empty.
+  - Each `warnings` line: say it in plain words once (for example "localmp will not help: no phase
+    is partitionable", "no output function, the result is discarded"). Warnings do not block.
 
 ## Step 2: adapter shims
 
@@ -187,26 +232,9 @@ Make one:
    never overwrite. Ask for a new name, update `check.sample` in the draft, and write again.
 5. Run `check` once. Show the result. Do not retry.
 
-## Step 1 tail: strategy, partition, checkpoints, output (ticket #57)
-
-Continues the case A conversation (items 6 to 9 above) and ends before Approve.
-
-- Duplicate function: give each use a distinct `name:` (the default name is the path, so two uses
-  of one path clash). Show both phase blocks and ask for the new name.
-- Strategy: if `localmp`, write `execution: {strategy: localmp, partition: {<one key>}}`. Exactly one
-  of `by` (list of columns, one piece per value), `chunk_size` (rows per piece), `worker_count`
-  (N slices).
-- Tail order: `checkpoint: true` on slow phases, `checkpoints: {dir: ...}`, `user_level`, then the
-  output function (same pick list as the input).
-- Before Approve, run `python <this folder>/scripts/lint_draft.py <repo>/plumber.draft.yaml`.
-  - Any `problems`: fix them with the user, rewrite the draft, lint again. Do not go to Approve
-    until `problems` is empty.
-  - Each `warnings` line: say it in plain words once (for example "localmp will not help: no phase
-    is partitionable", "no output function, the result is discarded"). Warnings do not block.
-
 ## Change an existing config (case B and C)
 
-Case B starts here. Case C is the same path, fed by `findings` from `detect_case.py` (and later by
+Case B starts here. Case C is the same path, fed by `findings` from `detect_case.py` (and by
 step 4 recommendations). Work on a copy: the draft. `plumber.yaml` stays untouched until Approve.
 
 1. Case B: ask one question, "What do you want to change?" Case C: say which `findings` you will
@@ -224,7 +252,7 @@ step 4 recommendations). Work on a copy: the draft. `plumber.yaml` stays untouch
 5. Approve as in case A, but show a diff of `plumber.yaml` against the draft (without the `# base:`
    line) next to the `check` output. The diff must show only real changes.
 
-## Resume and drift (ticket 58)
+## Resume and drift
 
 Case `resume` means a session was killed or stopped. The draft is the memory. Read the draft and
 continue from the first thing it does not answer yet. Never re-ask what the draft already holds.
@@ -269,6 +297,19 @@ WARNs on a working pipeline are questions, not errors. Keep them calm.
 
 After the approved fixes, run `check` once (`recommend.py` again, or `plumber check`), show the
 result, and stop. No retry loop. A FAIL left over is told, not chased.
+
+## Run it
+
+The last stop, after the config is saved. Ask once:
+"Run it yourself with a walkthrough, have me run it, or stop here?"
+
+- Walkthrough: load `<this folder>/run-guide.md` now, and only now. Do not load it for the other
+  answers. Walk the user through it.
+- Agent runs it: run `plumber check` (from the repo, with the repo's venv), then `plumber run`. Report
+  plainly: did it pass, where the output landed (the `output:` block), and any warning in the run
+  log. Do not retry on failure. Say what failed, in plain words.
+- Stop: one line, for example "Run `/plumber-setup` again and pick the walkthrough when you want
+  to run it."
 
 ## Edit and remove shims
 
