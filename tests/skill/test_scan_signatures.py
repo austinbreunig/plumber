@@ -52,3 +52,13 @@ def test_never_imports_and_ignores_bodies_and_broken_files(repo):
     assert "boom:g(data)" in found
     assert "method" not in " ".join(found)
     assert "boom" not in sys.modules
+
+
+def test_flags_tuple_returns_from_annotation_or_docstring(repo):
+    (repo / "tup.py").write_text(
+        "def a(data) -> tuple[int, str]:\n    pass\n"
+        'def b(data):\n    """Cluster.\n\n    Return (output_gdf, summary_dict).\n    """\n'
+        "def c(data) -> int:\n    pass\n"
+    )
+    found = {f["name"]: f["returns_tuple"] for f in scan.scan_signatures(repo)}
+    assert found["a"] and found["b"] and not found["c"]

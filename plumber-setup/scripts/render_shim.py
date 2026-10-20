@@ -6,9 +6,11 @@ Run with any Python; the spec comes on stdin as JSON:
   python render_shim.py taken <repo> <name>  -> {"taken": true|false}
 Spec: {"name": "x_shim", "wraps": "module:fn", "data_arg": "data",
        "loaders": [{"param": "model", "loader": "mod:load", "source": "model_source"}],
-       "passthrough": ["threshold"]}
-`loaders` and `passthrough` are optional. Line 1 of the shim is `# base: <hash>`, line 2 is
-`# shim wraps <module:fn>`. `create` never overwrites (raises FileExistsError).
+       "passthrough": ["threshold"], "result_index": 0}
+`loaders`, `passthrough` and `result_index` are optional. `result_index` picks one item out of a
+tuple the wrapped function returns, so the shim returns only the data.
+Line 1 of the shim is `# base: <hash>`, line 2 is `# shim wraps <module:fn>`.
+`create` never overwrites (raises FileExistsError).
 """
 
 import json
@@ -48,6 +50,16 @@ def check_identifier(value):
     return value
 
 
+def result_suffix(spec):
+    """`[n]` to pick item n out of a tuple return, or "" when the spec has no `result_index`."""
+    index = spec.get("result_index")
+    if index is None:
+        return ""
+    if isinstance(index, bool) or not isinstance(index, int) or index < 0:
+        raise ValueError(f"result_index must be a non-negative integer, got {index!r}")
+    return f"[{index}]"
+
+
 def render_shim(spec):
     """Full shim text, with the `# base:` line first."""
     check_identifier(spec["name"])
@@ -73,6 +85,7 @@ def render_shim(spec):
         loader_imports="\n".join(imports),
         params="".join(f", {p}" for p in sources + passthrough).replace(", ", ", *, ", 1),
         call=", ".join(args),
+        result=result_suffix(spec),
     )
     return f"# base: {hash_text(body)}\n{body}"
 

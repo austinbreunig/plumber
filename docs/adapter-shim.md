@@ -8,7 +8,7 @@ A phase must look like `run(gdf, **params) -> gdf`. You need a shim when your fu
 
 - takes the data in a different position or under a different name,
 - needs extra objects (a network, a model) that cannot go in YAML, or
-- returns something other than a GeoDataFrame.
+- returns a tuple, and you only want the GeoDataFrame in it.
 
 If your function already looks like `run(gdf, **params) -> gdf`, list it directly. No shim.
 
@@ -43,7 +43,10 @@ The working example is `src/plumber/examples/snap_shim.py`. The test suite runs 
 2. Keep the name `run`. First argument is the data. Everything else is a keyword param.
 3. Turn things YAML cannot hold into plain values. Pass a file path, not a loaded network.
    Load it inside `run`.
-4. Call your existing function and return its result as a GeoDataFrame.
+4. Call your existing function and return its result as a GeoDataFrame. If it returns a tuple like
+   `(gdf, summary)`, return the item you want: `return cluster_polygons(gdf, ...)[0]`. The skill does
+   this with `result_index`. To keep the extra output (log the summary, say), write a plain
+   function in your repo instead. A shim must stay pure, so it cannot log or save.
 5. List it in `plumber.yaml` and run `plumber check`.
 
 ## The phase contract

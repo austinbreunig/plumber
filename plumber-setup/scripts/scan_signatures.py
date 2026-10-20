@@ -2,7 +2,9 @@
 
 Run with any Python: `python scan_signatures.py [repo]`. Prints a JSON list:
   [{"path": "pkg.mod:fn", "name": "fn", "label": "pkg.mod:fn(data, n=3)",
-    "params": [{"name", "hint", "default", "required"}], "doc": "first docstring line"}]
+    "params": [{"name", "hint", "default", "required"}], "doc": "first docstring line",
+    "returns_tuple": true|false}]
+`returns_tuple` is true when the return annotation is a tuple or the docstring says "Return (...)".
 
 Never imports user code. Never reads function bodies (only names, params, defaults,
 type hints and the first docstring line). Skips venvs, hidden folders, tests, `.plumber/`.
@@ -10,6 +12,7 @@ type hints and the first docstring line). Skips venvs, hidden folders, tests, `.
 
 import ast
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -72,6 +75,14 @@ def format_label(path, params, args):
     return f"{path}({', '.join(parts)})"
 
 
+def returns_tuple(node):
+    """True if the return annotation is a tuple, or the docstring has a "Return (...)" line."""
+    hint = ast.unparse(node.returns) if node.returns else ""
+    if re.match(r"(tuple|Tuple)\b", hint):
+        return True
+    return bool(re.search(r"^\s*Returns?:?\s*\(", ast.get_docstring(node) or "", re.M))
+
+
 def scan_file(repo, file):
     try:
         tree = ast.parse(file.read_text(encoding="utf-8"))
@@ -92,6 +103,7 @@ def scan_file(repo, file):
                 "label": format_label(path, params, node.args),
                 "params": params,
                 "doc": doc,
+                "returns_tuple": returns_tuple(node),
             }
         )
     return found

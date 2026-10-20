@@ -39,6 +39,8 @@ skip any step. If a skipped step is needed later, say so in one line. Do not blo
 Rules for the whole step:
 - Read signatures only, with `scripts/scan_signatures.py`. Never read function bodies. Never import
   or call the user's code, and never call the input function.
+- The config keys are in `<this folder>/templates/plumber.example.yaml`. Read it once. Never read
+  plumber's source to learn them.
 - After every answer, rewrite the Draft (below) and show the YAML block you just changed.
 - Ask for required params only (with the type hint). Params with defaults: list them once, leave
   them out unless the user asks.
@@ -49,13 +51,22 @@ Conversation, in this order:
 1. Workflow. Ask one open question: "What does this pipeline do, step by step?" Not stored.
 2. Scan. Run `python <this folder>/scripts/scan_signatures.py <repo>`. Show each function as
    `label` (`path:name(params)`). Pre-select likely matches from the workflow answer. The user picks
-   and orders the phases. The input function and output function come from the same list. If the user
+   and orders the phases. The input function and output function come from the same list. A library
+   function counts: suggest `geopandas:read_parquet` (with `params: {path: ...}`) as the input if the
+   repo has no reader. Plumber cannot resolve `GeoDataFrame.to_parquet`, so a missing writer means a
+   small `write_parquet(gdf, path)`: offer to add it and ask where it should live. If the user
    types a path the scan missed, accept it.
 3. Fit. For each function say whether it matches `fn(data, **params) -> data` and give one line of
-   why. The user can overrule. A function that does not fit needs a shim (built in step 2). Propose
+   why. The user can overrule. A function that does not fit needs a shim (built in step 2), unless
+   the mismatch is in the return value and the user wants the extra output (see below). Propose
    the name `<function>_shim`. The user may rename it. A name clash with an existing file means
    "pick another name", never overwrite.
    Write the phase as `path: <name>:run  # shim wraps <module:fn>` (see Draft).
+   Return value: if the scan says `returns_tuple: true`, ask one question: "Do you want the extra
+   output (for example a summary to log)?" No: shim with `result_index` (the data's position in
+   the tuple, usually 0). Yes: a plain function in the repo that calls the original, logs or keeps
+   the extra, and returns the data. A shim stays pure, so it cannot do that. Offer to write it and
+   ask where it should live, then list it as a normal phase.
 4. Repeated function. One shim, reused. Give each use its own `params:` and a distinct phase `name:`.
 5. Params. Required ones only.
 6. `partitionable`, for every phase, never defaulted. Ask in plain words with an example, for
@@ -122,6 +133,8 @@ For each function that does not fit `fn(data, **params) -> data`, agree on one s
   it from one value. The loader must take exactly one required param (check with the scan: one
   param with `required: true`). The shim gets a plain `<param>_source` param. No loader exists:
   offer "skip this shim" or "pick another function". Never invent a shape.
+- `result_index`: optional. Picks one item out of a tuple the wrapped function returns, so the shim
+  returns only the data. Leave it out when the function returns the data alone.
 - `passthrough`: the other required params. The phase's `params:` in the YAML holds the
   `<param>_source` values and the passthrough values.
 

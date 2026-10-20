@@ -96,3 +96,38 @@ def test_shim_name_cannot_shadow_a_wrapped_module(name):
     spec = {**SPEC, "name": name, "loaders": [{**SPEC["loaders"][0], "loader": "mod:load"}]}
     with pytest.raises(ValueError):
         render_shim.render_shim(spec)
+
+
+def run_shim(tmp_path, monkeypatch, spec):
+    (tmp_path / "clusters.py").write_text(
+        "def cluster(frame, n):\n    return (frame + n, 'summary')\n"
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    ns = {}
+    exec(render_shim.render_shim(spec), ns)
+    return ns["run"]
+
+
+TUPLE_SPEC = {
+    "name": "cluster_shim",
+    "wraps": "clusters:cluster",
+    "data_arg": "frame",
+    "passthrough": ["n"],
+}
+
+
+def test_result_index_returns_only_that_item(tmp_path, monkeypatch):
+    run = run_shim(tmp_path, monkeypatch, {**TUPLE_SPEC, "result_index": 0})
+    assert run(1, n=2) == 3
+
+
+def test_no_result_index_leaves_the_return_untouched(tmp_path, monkeypatch):
+    run = run_shim(tmp_path, monkeypatch, TUPLE_SPEC)
+    assert run(1, n=2) == (3, "summary")
+    assert "[" not in render_shim.render_shim(TUPLE_SPEC).split("def run")[1]
+
+
+@pytest.mark.parametrize("bad", [-1, "0", 1.5, True])
+def test_bad_result_index_raises(bad):
+    with pytest.raises(ValueError, match="result_index"):
+        render_shim.render_shim({**TUPLE_SPEC, "result_index": bad})

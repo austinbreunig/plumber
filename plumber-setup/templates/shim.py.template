@@ -3,4 +3,4 @@ from ${module} import ${function} as _wrapped
 ${loader_imports}
 
 def run(data${params}):
-    return _wrapped(${call})
+    return _wrapped(${call})${result}
