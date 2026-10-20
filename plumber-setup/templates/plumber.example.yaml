@@ -1,0 +1,43 @@
+# One complete plumber.yaml. Every key plumber reads is here.
+# "item N" is the number in the Step 1 interview. Swap the paths for your own functions.
+
+# Required. Any function that returns the data, called as fn(**params).
+# A library reader works: `geopandas:read_parquet` with params {path: data/in.parquet}.
+input:
+  path: myio:load_fixture
+  params: {}
+
+# Required. Run in this order (items 2 to 6).
+phases:
+  - path: phases.scale_value:run      # module:function. A shim is `<name>:run`.
+    name: scale                       # Optional. Defaults to the path. Needed for a repeated function.
+    partitionable: true               # Required, never defaulted (item 6).
+    checkpoint: true                  # Optional, default false. Saves this phase's output (item 9).
+    params: {factor: 2}               # Keyword params for the function (item 5).
+
+  - path: phases.drop_value:run
+    partitionable: false
+    params: {}
+
+# Optional (item 9). Without it the result is discarded and `run` warns.
+# Called as fn(data, **params). Plumber cannot resolve `GeoDataFrame.to_parquet`, so use a
+# small function like write_parquet(gdf, path).
+output:
+  path: myio:write_parquet
+  params: {path: out/result.parquet}
+
+# Optional (item 7). Default is one process (`local`).
+execution:
+  strategy: localmp                   # `local` or `localmp`
+  partition: {chunk_size: 4}          # localmp needs exactly one of: by, chunk_size, worker_count
+
+# Optional (item 8). A small file shaped like the input. `plumber check` runs the phases on it.
+check:
+  sample: .plumber/check_sample.parquet
+
+# Optional (item 9). Where checkpoints go.
+checkpoints:
+  dir: .plumber/checkpoints
+
+# Optional (item 9). DEBUG, INFO, WARNING, ERROR, CRITICAL or off. Default INFO.
+user_level: INFO
