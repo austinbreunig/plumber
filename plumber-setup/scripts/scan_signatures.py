@@ -6,6 +6,7 @@ Run with any Python: `python scan_signatures.py [repo]`. Prints a JSON list:
     "returns_tuple": true|false}]
 `returns_tuple` is true when the return annotation is a tuple or the docstring says "Return (...)".
 
+A bare-name default of a module-level literal (`n=DEFAULT_N`) shows the literal's value.
 Never imports user code. Never reads function bodies (only names, params, defaults,
 type hints and the first docstring line). Skips venvs, hidden folders, tests, `.plumber/`.
 """
@@ -43,8 +44,31 @@ def module_name(repo, file):
     return ".".join(parts)
 
 
-def read_params(args):
+def module_constants(tree):
+    """Module-level `NAME = <literal>` assignments, as {name: source text of the literal}."""
+    found = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            try:
+                ast.literal_eval(node.value)
+            except ValueError:
+                continue
+            if isinstance(target, ast.Name):
+                found[target.id] = ast.unparse(node.value)
+    return found
+
+
+def default_text(default, constants):
+    """Source text of a default. A bare name of a module-level literal shows its value."""
+    if isinstance(default, ast.Name) and default.id in constants:
+        return constants[default.id]
+    return ast.unparse(default)
+
+
+def read_params(args, constants=None):
     """Named params of a function, in order, each as a dict. Skips *args and **kwargs."""
+    constants = constants or {}
     positional = args.posonlyargs + args.args
     defaults = [None] * (len(positional) - len(args.defaults)) + list(args.defaults)
     pairs = list(zip(positional, defaults)) + list(zip(args.kwonlyargs, args.kw_defaults))
@@ -52,7 +76,7 @@ def read_params(args):
         {
             "name": arg.arg,
             "hint": ast.unparse(arg.annotation) if arg.annotation else None,
-            "default": ast.unparse(default) if default is not None else None,
+            "default": default_text(default, constants) if default is not None else None,
             "required": default is None,
         }
         for arg, default in pairs
@@ -89,11 +113,12 @@ def scan_file(repo, file):
     except (SyntaxError, UnicodeDecodeError, ValueError):
         return []
     module = module_name(repo, file)
+    constants = module_constants(tree)
     found = []
     for node in tree.body:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        params = read_params(node.args)
+        params = read_params(node.args, constants)
         path = f"{module}:{node.name}"
         doc = (ast.get_docstring(node) or "").strip().split("\n")[0]
         found.append(

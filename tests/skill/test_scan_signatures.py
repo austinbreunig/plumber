@@ -62,3 +62,13 @@ def test_flags_tuple_returns_from_annotation_or_docstring(repo):
     )
     found = {f["name"]: f["returns_tuple"] for f in scan.scan_signatures(repo)}
     assert found["a"] and found["b"] and not found["c"]
+
+
+def test_resolves_bare_name_defaults_to_module_literals(repo):
+    (repo / "consts.py").write_text(
+        "DEFAULT_EPSILONS = (80, 35)\nLIMIT = 3\nSTATE = make()\n"
+        "def f(data, eps=DEFAULT_EPSILONS, n=LIMIT, s=STATE, m=MISSING):\n    pass\n"
+    )
+    f = next(f for f in scan.scan_signatures(repo) if f["name"] == "f")
+    defaults = {p["name"]: p["default"] for p in f["params"]}
+    assert defaults == {"data": None, "eps": "(80, 35)", "n": "3", "s": "STATE", "m": "MISSING"}

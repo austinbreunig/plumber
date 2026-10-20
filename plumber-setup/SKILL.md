@@ -43,7 +43,8 @@ Rules for the whole step:
   plumber's source to learn them.
 - After every answer, rewrite the Draft (below) and show the YAML block you just changed.
 - Ask for required params only (with the type hint). Params with defaults: list them once, leave
-  them out unless the user asks.
+  them out unless the user asks. The scan shows a named constant default (`n=DEFAULT_N`) as its
+  value, so list the value.
 - Do not ask for phase names. The default is the path. Ask only to resolve a duplicate.
 
 Conversation, in this order:
@@ -54,7 +55,10 @@ Conversation, in this order:
    and orders the phases. The input function and output function come from the same list. A library
    function counts: suggest `geopandas:read_parquet` (with `params: {path: ...}`) as the input if the
    repo has no reader. Plumber cannot resolve `GeoDataFrame.to_parquet`, so a missing writer means a
-   small `write_parquet(gdf, path)`: offer to add it and ask where it should live. If the user
+   small `write_parquet(gdf, path)`: offer to add it and ask where it should live. If the repo has
+   no loader or writer function at all, the read or write may sit inside another function (for
+   example `main`). Ask which function holds it, and read that function's body only, for that one
+   purpose. If the user
    types a path the scan missed, accept it.
 3. Fit. For each function say whether it matches `fn(data, **params) -> data` and give one line of
    why. The user can overrule. A function that does not fit needs a shim (built in step 2), unless
@@ -68,7 +72,11 @@ Conversation, in this order:
    the extra, and returns the data. A shim stays pure, so it cannot do that. Offer to write it and
    ask where it should live, then list it as a normal phase.
 4. Repeated function. One shim, reused. Give each use its own `params:` and a distinct phase `name:`.
-5. Params. Required ones only.
+5. Params. Required ones only. Before the first draft write, ask for every file path you need (the
+   input file, the sample). Never guess one. A value the user will fill in later: write `null`, tell
+   them `check` will flag it, and list it as an open item before Approve. If the user already has a
+   sample file, run `sample.py schema <file>` and suggest its columns for params like `key_field`
+   and `id_field` (for example `zone`, `parcel_id`).
 6. `partitionable`, for every phase, never defaulted. Ask in plain words with an example, for
    example: "Can this phase run on a slice of the rows alone? Yes for a per-row scale. No for a
    dedupe across all rows."
@@ -80,7 +88,9 @@ Conversation, in this order:
    sample itself is built in step 3.
 9. Tail: slow phases for `checkpoint: true`, `checkpoints.dir`, `user_level`, and the output
    function. If the user skips the output function, repeat plumber's warning: the result is
-   discarded.
+   discarded. Do not ask these one by one. Offer the default for every remaining item in one
+   sentence, for example "no checkpoints, INFO logs, no output function: OK?", and ask only about
+   what differs.
 
 ### Draft
 
@@ -135,7 +145,10 @@ For each function that does not fit `fn(data, **params) -> data`, agree on one s
   offer "skip this shim" or "pick another function". Never invent a shape.
 - `result_index`: optional. Picks one item out of a tuple the wrapped function returns, so the shim
   returns only the data. Leave it out when the function returns the data alone.
-- `passthrough`: the other required params. The phase's `params:` in the YAML holds the
+- `passthrough`: the other required params, plus any optional ones the user wants in YAML. The
+  shim makes each passthrough a required keyword with no default, so put every passthrough value
+  in the phase's `params:`, including the defaults of the optional ones. YAML `[80, 35]` arrives as
+  a list, not a tuple. Tell the user if the function needs a tuple. The phase's `params:` in the YAML holds the
   `<param>_source` values and the passthrough values.
 
 Name clash: `python <this folder>/scripts/render_shim.py taken <repo> <name>`. If `taken: true`, say
@@ -143,7 +156,8 @@ Name clash: `python <this folder>/scripts/render_shim.py taken <repo> <name>`. I
 
 ### Build
 
-1. Render each pending shim: `python <this folder>/scripts/render_shim.py render < spec.json`.
+1. Write each spec to the scratchpad, never `/tmp`. Render each pending shim:
+   `python <this folder>/scripts/render_shim.py render < spec.json`.
    Show every pending shim in full with its expected `params:`. Ask one yes for the whole set.
 2. Yes: `python <this folder>/scripts/render_shim.py create <repo> < spec.json` once per shim. It
    writes `.plumber/<name>.py` and refuses to overwrite. The shim is referenced as `<name>:run`.
