@@ -13,11 +13,11 @@ A run that executes only a slice of the configured phases, chosen on the CLI rat
 _Avoid_: Resume, rerun, skip
 
 **Input function**:
-The user's own function that reads the pipeline's source data and returns it. Named in the config's `input:` block.
+Any function that reads the pipeline's source data and returns it, named in the config's `input:` block. It can be the user's own or a library function such as `geopandas:read_parquet`. Required.
 _Avoid_: Adapter, reader, loader, source
 
 **Output function**:
-The user's own function that writes the pipeline's final data to its destination. Named in the config's optional `output:` block.
+Any function that writes the pipeline's final data to its destination, named in the config's optional `output:` block. It can be the user's own or a library function.
 _Avoid_: Adapter, writer, sink
 
 **Adapter shim**:
