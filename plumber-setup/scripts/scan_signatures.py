@@ -1,0 +1,148 @@
+"""List the functions in a repo's .py files, using `ast` only.
+
+Run with any Python: `python scan_signatures.py [repo]`. Prints a JSON list:
+  [{"path": "pkg.mod:fn", "name": "fn", "label": "pkg.mod:fn(data, n=3)",
+    "params": [{"name", "hint", "default", "required"}], "doc": "first docstring line",
+    "returns_tuple": true|false}]
+`returns_tuple` is true when the return annotation is a tuple or the docstring says "Return (...)".
+
+A bare-name default of a module-level literal (`n=DEFAULT_N`) shows the literal's value.
+Never imports user code. Never reads function bodies (only names, params, defaults,
+type hints and the first docstring line). Skips venvs, hidden folders, tests, `.plumber/`.
+"""
+
+import ast
+import json
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from common import walk_repo  # noqa: E402
+
+SKIP_DIRS = {"tests", "__pycache__", "node_modules"}
+
+
+def skip_dir(name):
+    return name.startswith(".") or name in SKIP_DIRS
+
+
+def source_files(repo):
+    """Every .py file under `repo`, skipping venvs, hidden folders, tests and `.plumber/`."""
+    for folder, files, is_venv in walk_repo(repo, skip_dir):
+        if not is_venv:
+            for name in sorted(files):
+                if name.endswith(".py"):
+                    yield folder / name
+
+
+def module_name(repo, file):
+    parts = list(file.relative_to(repo).with_suffix("").parts)
+    if parts[-1] == "__init__":
+        parts.pop()
+    return ".".join(parts)
+
+
+def module_constants(tree):
+    """Module-level `NAME = <literal>` assignments, as {name: source text of the literal}."""
+    found = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            try:
+                ast.literal_eval(node.value)
+            except ValueError:
+                continue
+            if isinstance(target, ast.Name):
+                found[target.id] = ast.unparse(node.value)
+    return found
+
+
+def default_text(default, constants):
+    """Source text of a default. A bare name of a module-level literal shows its value."""
+    if isinstance(default, ast.Name) and default.id in constants:
+        return constants[default.id]
+    return ast.unparse(default)
+
+
+def read_params(args, constants=None):
+    """Named params of a function, in order, each as a dict. Skips *args and **kwargs."""
+    constants = constants or {}
+    positional = args.posonlyargs + args.args
+    defaults = [None] * (len(positional) - len(args.defaults)) + list(args.defaults)
+    pairs = list(zip(positional, defaults)) + list(zip(args.kwonlyargs, args.kw_defaults))
+    return [
+        {
+            "name": arg.arg,
+            "hint": ast.unparse(arg.annotation) if arg.annotation else None,
+            "default": default_text(default, constants) if default is not None else None,
+            "required": default is None,
+        }
+        for arg, default in pairs
+    ]
+
+
+def format_label(path, params, args):
+    parts = []
+    for p in params:
+        text = p["name"]
+        if p["hint"]:
+            text += f": {p['hint']}"
+        if p["default"] is not None:
+            text += f" = {p['default']}" if p["hint"] else f"={p['default']}"
+        parts.append(text)
+    if args.vararg:
+        parts.append(f"*{args.vararg.arg}")
+    if args.kwarg:
+        parts.append(f"**{args.kwarg.arg}")
+    return f"{path}({', '.join(parts)})"
+
+
+def returns_tuple(node):
+    """True if the return annotation is a tuple, or the docstring has a "Return (...)" line."""
+    hint = ast.unparse(node.returns) if node.returns else ""
+    if re.match(r"(tuple|Tuple)\b", hint):
+        return True
+    return bool(re.search(r"^\s*Returns?:?\s*\(", ast.get_docstring(node) or "", re.M))
+
+
+def scan_file(repo, file):
+    try:
+        tree = ast.parse(file.read_text(encoding="utf-8"))
+    except (SyntaxError, UnicodeDecodeError, ValueError):
+        return []
+    module = module_name(repo, file)
+    constants = module_constants(tree)
+    found = []
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        params = read_params(node.args, constants)
+        path = f"{module}:{node.name}"
+        doc = (ast.get_docstring(node) or "").strip().split("\n")[0]
+        found.append(
+            {
+                "path": path,
+                "name": node.name,
+                "label": format_label(path, params, node.args),
+                "params": params,
+                "doc": doc,
+                "returns_tuple": returns_tuple(node),
+            }
+        )
+    return found
+
+
+def scan_signatures(repo="."):
+    repo = Path(repo)
+    return [f for file in source_files(repo) for f in scan_file(repo, file)]
+
+
+def main():
+    repo = sys.argv[1] if len(sys.argv) > 1 else "."
+    print(json.dumps(scan_signatures(repo)))
+
+
+if __name__ == "__main__":
+    main()

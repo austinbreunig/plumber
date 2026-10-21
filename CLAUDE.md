@@ -1,10 +1,18 @@
 # plumber
 
 Geospatial pipeline framework. See `README.md` for the one-paragraph pitch and
-`.scratch/discovery/map.md` for the wayfinder map of open Discovery decisions.
+GitHub issue #1 for the wayfinder map.
 
-Currently in **Phase 0 (Discovery)** — no implementation. The design doc that
-seeded this project is captured on the wayfinder map's Notes.
+Discovery decisions are on the wayfinder map. The Tracer and MVP slices are built
+(`run`, `check`, `localmp`, checkpoints, partial runs, PyPI release). The project is in
+Refinement. The design doc that seeded this project is captured on the wayfinder map's Notes.
+
+## Dev commands
+
+```bash
+nix develop --command uv run --extra dev pytest -q
+nix develop --command uv run --extra dev ruff check .
+```
 
 ## Agent skills
 
@@ -12,9 +20,7 @@ seeded this project is captured on the wayfinder map's Notes.
 
 GitHub Issues in `austinbreunig/plumber`, via the `gh` CLI. See
 `docs/agents/issue-tracker.md`. The Discovery wayfinder map and its tickets live
-as GitHub issues (label `wayfinder:map` for the map). The original
-`.scratch/discovery/` markdown is kept as the charting-session record only —
-GitHub is now the source of truth.
+as GitHub issues (label `wayfinder:map` for the map, issue #1).
 
 ### Domain docs
 

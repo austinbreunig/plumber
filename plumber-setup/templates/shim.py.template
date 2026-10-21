@@ -1,0 +1,6 @@
+# shim wraps ${wraps}
+from ${module} import ${function} as _wrapped
+${loader_imports}
+
+def run(data${params}):
+    return _wrapped(${call})${result}

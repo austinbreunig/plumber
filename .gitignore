@@ -10,3 +10,4 @@ build/
 data/raw/*
 data/processed/*
 !data/**/.gitkeep
+.claude/worktrees/

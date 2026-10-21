@@ -1,0 +1,17 @@
+# Static mistakes. `check` stops at these, so the runtime probe does not run.
+input:
+  path: myio:load_fixture
+  params: {}
+
+phases:
+  - path: phases.clip_value:run
+    partitionable: true
+    params: {limt: 5}            # typo: the function takes `limit`
+  - path: tidy_shim:run          # shim wraps phases.tidy:tidy
+    partitionable: true
+    params: {mode_source: fast}
+  - path: phases.passthrough:run # no `partitionable`
+
+output:
+  path: myio:write_parquet
+  params: {path: out/result.parquet}

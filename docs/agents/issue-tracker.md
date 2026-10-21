@@ -43,3 +43,7 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me` — the session's first write.
 - **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+
+## Tie every ticket to its PR
+
+`close-pr-tickets.yml` closes only issues labeled `pr-<number>` when that PR merges. It ignores `Closes #N`, and GitHub's own auto-close does not fire because PRs target `develop`, not `main`. When you open a PR for a ticket, create the label (`gh label create pr-<N>`) and add it to every ticket the PR implements, before the merge.
